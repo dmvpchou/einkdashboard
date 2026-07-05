@@ -141,6 +141,13 @@ async function getToolStatus() {
   ]);
 
   const codexAuthPath = path.join(os.homedir(), ".codex", "auth.json");
+  const codexInstalled = findExecutableOnPath("codex") || findExecutableOnPath("codex.exe");
+  const codexLine = codexVersion.ok
+    ? codexVersion.stdout.split(/\r?\n/)[0]
+    : codexInstalled
+      ? "Codex installed"
+      : "Codex CLI not found";
+
   return {
     claude: {
       label: "Claude Code",
@@ -150,11 +157,35 @@ async function getToolStatus() {
     },
     codex: {
       label: "Codex",
-      state: codexVersion.ok || fs.existsSync(codexAuthPath) ? "ready" : "unknown",
-      line: codexVersion.ok ? codexVersion.stdout.split(/\r?\n/)[0] : "Codex CLI not detected here",
-      detail: fs.existsSync(codexAuthPath) ? "ChatGPT auth cache found" : "No local auth cache found"
+      state: codexVersion.ok || codexInstalled || fs.existsSync(codexAuthPath) ? "ready" : "unknown",
+      line: codexLine,
+      detail: fs.existsSync(codexAuthPath)
+        ? "ChatGPT auth cache found"
+        : codexInstalled
+          ? "CLI found; auth cache not visible"
+          : "No local auth cache found"
     }
   };
+}
+
+function findExecutableOnPath(name) {
+  const pathExts = process.platform === "win32"
+    ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";")
+    : [""];
+  const dirs = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
+  const names = path.extname(name) ? [name] : pathExts.map((ext) => `${name}${ext.toLowerCase()}`);
+  for (const dir of dirs) {
+    for (const candidate of names) {
+      const fullPath = path.join(dir, candidate);
+      try {
+        fs.accessSync(fullPath, fs.constants.F_OK);
+        return fullPath;
+      } catch {
+        // Keep scanning.
+      }
+    }
+  }
+  return "";
 }
 
 async function getWeather() {
