@@ -141,29 +141,37 @@ async function getToolStatus() {
   ]);
 
   const codexAuthPath = path.join(os.homedir(), ".codex", "auth.json");
+  const codexHasAuth = fs.existsSync(codexAuthPath);
   const codexInstalled = findExecutableOnPath("codex") || findExecutableOnPath("codex.exe");
   const codexLine = codexVersion.ok
-    ? codexVersion.stdout.split(/\r?\n/)[0]
-    : codexInstalled
+    ? "Codex Ready"
+    : codexHasAuth
+      ? "Codex Ready"
+      : codexInstalled
       ? "Codex installed"
       : "Codex CLI not found";
+  const codexDetail = codexVersion.ok
+    ? codexVersion.stdout.split(/\r?\n/)[0]
+    : codexHasAuth
+      ? "Auth cache found; usage unavailable"
+      : codexInstalled
+        ? "CLI found; auth cache not visible"
+        : "No local auth cache found";
 
   return {
     claude: {
       label: "Claude Code",
       state: claudeAuth.ok ? "ready" : "unknown",
-      line: claudeAuth.ok ? claudeAuth.stdout.split(/\r?\n/)[0] || "Signed in" : "Open Claude Code /usage for exact plan bars",
-      detail: "Usage feed: local estimate pending"
+      line: claudeAuth.ok ? "Claude Ready" : "Usage pending",
+      detail: claudeAuth.ok
+        ? claudeAuth.stdout.split(/\r?\n/)[0] || "Signed in"
+        : "Connect Claude Code /usage later"
     },
     codex: {
       label: "Codex",
-      state: codexVersion.ok || codexInstalled || fs.existsSync(codexAuthPath) ? "ready" : "unknown",
+      state: codexVersion.ok || codexInstalled || codexHasAuth ? "ready" : "unknown",
       line: codexLine,
-      detail: fs.existsSync(codexAuthPath)
-        ? "ChatGPT auth cache found"
-        : codexInstalled
-          ? "CLI found; auth cache not visible"
-          : "No local auth cache found"
+      detail: codexDetail
     }
   };
 }
