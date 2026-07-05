@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f7f5ee">
+    <title>Leaf2 Usage Board</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="board" aria-live="polite">
+      <section class="time-panel">
+        <div class="date-line" id="dateLine">--</div>
+        <div class="clock" id="clock">--:--</div>
+        <div class="subline" id="secondLine">--</div>
+      </section>
+
+      <section class="weather-panel">
+        <div>
+          <div class="section-label">Weather</div>
+          <div class="weather-place" id="weatherPlace">--</div>
+        </div>
+        <div class="weather-main">
+          <div class="temperature" id="temperature">--</div>
+          <div class="weather-meta">
+            <span id="weatherText">--</span>
+            <span id="weatherRange">--</span>
+            <span id="weatherWind">--</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="usage-grid">
+        <article class="usage-card">
+          <div class="card-top">
+            <span class="section-label">Codex</span>
+            <span class="state-dot" id="codexDot"></span>
+          </div>
+          <div class="usage-value" id="codexValue">--</div>
+          <div class="usage-note" id="codexNote">Waiting for local status</div>
+        </article>
+
+        <article class="usage-card">
+          <div class="card-top">
+            <span class="section-label">Claude Code</span>
+            <span class="state-dot" id="claudeDot"></span>
+          </div>
+          <div class="usage-value" id="claudeValue">--</div>
+          <div class="usage-note" id="claudeNote">Waiting for local status</div>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <span id="updatedAt">Not updated yet</span>
+        <span id="lanHint">Leaf2 board</span>
+      </footer>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
