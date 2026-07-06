@@ -28,3 +28,20 @@ Copy `config.example.json` to `config.json` and adjust the location or port.
 ```
 
 Weather is fetched from Open-Meteo without an API key.
+
+## Claude Code usage
+
+Claude Code can feed real subscription usage into the dashboard through its
+status line data. Configure Claude Code to run:
+
+```powershell
+node C:\Users\user\Documents\Codex\2026-07-05\boox-leaf2-pc-codex-claude-code\scripts\claude-statusline.js
+```
+
+The script writes `data/claude-status.json`, which the dashboard reads. The
+JSON file is ignored by Git because it is local usage state.
+
+In Claude Code, use `/statusline` and choose a custom command, or add the same
+command to your Claude Code settings. After Claude Code receives at least one
+API response, the dashboard can show the 5-hour and 7-day rate-limit usage when
+those fields are available.

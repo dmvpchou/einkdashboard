@@ -7,6 +7,7 @@ const { execFile } = require("child_process");
 
 const root = __dirname;
 const publicDir = path.join(root, "public");
+const dataDir = path.join(root, "data");
 
 const defaultConfig = {
   port: 8765,
@@ -44,6 +45,23 @@ function sendJson(res, status, body) {
     "cache-control": "no-store"
   });
   res.end(payload);
+}
+
+function readJsonIfFresh(filePath, maxAgeMs) {
+  try {
+    const stat = fs.statSync(filePath);
+    const ageMs = Date.now() - stat.mtimeMs;
+    if (ageMs > maxAgeMs) return null;
+    const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return { data, ageMs };
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
 function sendFile(res, filePath) {
@@ -140,6 +158,9 @@ async function getToolStatus() {
     runCommand("codex", ["--version"])
   ]);
 
+  const claudeStatus = readJsonIfFresh(path.join(dataDir, "claude-status.json"), 15 * 60 * 1000);
+  const claudeUsage = claudeStatus ? summarizeClaudeUsage(claudeStatus.data) : null;
+
   const codexAuthPath = path.join(os.homedir(), ".codex", "auth.json");
   const codexHasAuth = fs.existsSync(codexAuthPath);
   const codexInstalled = findExecutableOnPath("codex") || findExecutableOnPath("codex.exe");
@@ -161,19 +182,51 @@ async function getToolStatus() {
   return {
     claude: {
       label: "Claude Code",
-      state: claudeAuth.ok ? "ready" : "unknown",
-      line: claudeAuth.ok ? "Claude Ready" : "Usage pending",
-      detail: claudeAuth.ok
+      state: claudeUsage ? "ready" : claudeAuth.ok ? "ready" : "unknown",
+      line: claudeUsage?.line || (claudeAuth.ok ? "Claude Ready" : "Usage pending"),
+      detail: claudeUsage?.detail || (claudeAuth.ok
         ? claudeAuth.stdout.split(/\r?\n/)[0] || "Signed in"
-        : "Connect Claude Code /usage later"
+        : "Enable statusline bridge"),
+      meter: claudeUsage?.meter || null
     },
     codex: {
       label: "Codex",
       state: codexVersion.ok || codexInstalled || codexHasAuth ? "ready" : "unknown",
       line: codexLine,
-      detail: codexDetail
+      detail: codexDetail,
+      meter: null
     }
   };
+}
+
+function summarizeClaudeUsage(status) {
+  const fiveHour = status.rateLimits?.fiveHour;
+  const sevenDay = status.rateLimits?.sevenDay;
+  const preferred = fiveHour?.usedPercentage != null ? fiveHour : sevenDay;
+  if (!preferred?.usedPercentage && preferred?.usedPercentage !== 0) return null;
+
+  const label = fiveHour?.usedPercentage != null ? "5h" : "7d";
+  const percent = Math.round(preferred.usedPercentage);
+  const reset = preferred.resetsAt ? formatReset(preferred.resetsAt) : "reset unknown";
+  const weekText = sevenDay?.usedPercentage != null ? `7d ${Math.round(sevenDay.usedPercentage)}%` : null;
+  return {
+    line: `${label} ${percent}% used`,
+    detail: [reset, weekText, status.model].filter(Boolean).join(" · "),
+    meter: {
+      value: percent,
+      label
+    }
+  };
+}
+
+function formatReset(epochSeconds) {
+  const date = new Date(epochSeconds * 1000);
+  if (Number.isNaN(date.getTime())) return "reset unknown";
+  return `resets ${date.toLocaleTimeString("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  })}`;
 }
 
 function findExecutableOnPath(name) {
@@ -197,6 +250,7 @@ function findExecutableOnPath(name) {
 }
 
 async function getWeather() {
+  const cachePath = path.join(dataDir, "weather-cache.json");
   const location = config.location;
   const params = new URLSearchParams({
     latitude: String(location.latitude),
@@ -207,12 +261,14 @@ async function getWeather() {
   });
   const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
   const data = await httpsJson(url);
-  return {
+  const payload = {
     label: location.label,
     timezone: location.timezone,
     current: data.current,
     daily: data.daily
   };
+  writeJson(cachePath, payload);
+  return payload;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -233,8 +289,14 @@ const server = http.createServer(async (req, res) => {
     try {
       sendJson(res, 200, await getWeather());
     } catch (error) {
-      sendJson(res, 502, {
+      const cached = readJsonIfFresh(path.join(dataDir, "weather-cache.json"), 6 * 60 * 60 * 1000);
+      if (cached) {
+        sendJson(res, 200, { ...cached.data, stale: true });
+        return;
+      }
+      sendJson(res, 200, {
         label: config.location.label,
+        offline: true,
         error: error.message
       });
     }

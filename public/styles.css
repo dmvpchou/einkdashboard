@@ -30,14 +30,14 @@ body {
 
 .board {
   min-height: 100vh;
-  padding: 28px;
+  padding: 18px 22px;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  gap: 18px;
+  gap: 12px;
 }
 
 .time-panel {
-  min-height: 300px;
+  min-height: 235px;
   border-bottom: 3px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -55,28 +55,28 @@ body {
 }
 
 .date-line {
-  font-size: 1.85rem;
+  font-size: 1.55rem;
 }
 
 .clock {
-  margin-top: 8px;
-  font-size: 8.8rem;
+  margin-top: 4px;
+  font-size: 7.1rem;
   line-height: 0.92;
   font-weight: 780;
   font-variant-numeric: tabular-nums;
 }
 
 .subline {
-  margin-top: 14px;
-  font-size: 1.65rem;
+  margin-top: 8px;
+  font-size: 1.22rem;
   font-variant-numeric: tabular-nums;
 }
 
 .weather-panel {
-  min-height: 150px;
+  min-height: 122px;
   border: 2px solid var(--line);
   background: var(--soft);
-  padding: 22px 26px;
+  padding: 16px 20px;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 20px;
@@ -89,8 +89,8 @@ body {
 }
 
 .weather-place {
-  margin-top: 8px;
-  font-size: 3rem;
+  margin-top: 6px;
+  font-size: 2.5rem;
   line-height: 1;
   font-weight: 760;
 }
@@ -103,7 +103,7 @@ body {
 }
 
 .temperature {
-  font-size: 5.3rem;
+  font-size: 4.25rem;
   line-height: 0.9;
   font-weight: 780;
   font-variant-numeric: tabular-nums;
@@ -114,22 +114,22 @@ body {
   gap: 6px;
   min-width: 112px;
   padding-bottom: 4px;
-  font-size: 1.28rem;
+  font-size: 1.05rem;
   line-height: 1.18;
 }
 
 .usage-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .usage-card {
-  min-height: 165px;
+  min-height: 142px;
   border: 2px solid var(--line);
-  padding: 22px 26px;
+  padding: 16px 20px;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr auto auto;
   background: var(--card);
 }
 
@@ -159,7 +159,7 @@ body {
 .usage-value {
   align-self: center;
   max-width: 100%;
-  font-size: 3.2rem;
+  font-size: 2.65rem;
   line-height: 1.02;
   font-weight: 760;
   overflow-wrap: normal;
@@ -167,8 +167,22 @@ body {
 
 .usage-note {
   min-height: 1.45em;
-  font-size: 1.22rem;
+  font-size: 1rem;
   line-height: 1.25;
+}
+
+.meter {
+  height: 13px;
+  border: 2px solid var(--line);
+  margin-bottom: 9px;
+  background: var(--paper);
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--ink);
 }
 
 .footer {
@@ -183,12 +197,12 @@ body {
 
 @media (min-width: 900px) and (orientation: portrait) {
   .board {
-    padding: 40px;
-    gap: 24px;
+    padding: 28px 34px;
+    gap: 16px;
   }
 
   .time-panel {
-    min-height: 390px;
+    min-height: 285px;
   }
 
   .date-line {
@@ -196,7 +210,7 @@ body {
   }
 
   .clock {
-    font-size: 11rem;
+    font-size: 8.8rem;
   }
 
   .subline {
@@ -204,8 +218,8 @@ body {
   }
 
   .weather-panel {
-    min-height: 180px;
-    padding: 28px 32px;
+    min-height: 140px;
+    padding: 20px 26px;
   }
 
   .weather-place {
@@ -213,16 +227,16 @@ body {
   }
 
   .temperature {
-    font-size: 6.4rem;
+    font-size: 4.9rem;
   }
 
   .usage-card {
-    min-height: 190px;
-    padding: 26px 32px;
+    min-height: 158px;
+    padding: 20px 26px;
   }
 
   .usage-value {
-    font-size: 3.9rem;
+    font-size: 3.15rem;
   }
 }
 

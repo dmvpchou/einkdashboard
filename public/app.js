@@ -72,7 +72,22 @@ function setDot(id, state) {
 function updateToolCard(prefix, tool) {
   text(`${prefix}Value`, tool.line || "--");
   text(`${prefix}Note`, tool.detail || "");
+  updateMeter(prefix, tool.meter);
   setDot(`${prefix}Dot`, tool.state);
+}
+
+function updateMeter(prefix, meter) {
+  const meterElement = document.getElementById(`${prefix}Meter`);
+  const fill = document.getElementById(`${prefix}MeterFill`);
+  if (!meterElement || !fill) return;
+  if (!meter || !Number.isFinite(Number(meter.value))) {
+    meterElement.hidden = true;
+    fill.style.width = "0%";
+    return;
+  }
+  const value = Math.max(0, Math.min(100, Number(meter.value)));
+  meterElement.hidden = false;
+  fill.style.width = `${value}%`;
 }
 
 async function refreshStatus() {
@@ -105,8 +120,15 @@ async function refreshWeather() {
     const min = daily.temperature_2m_min && daily.temperature_2m_min[0];
     const pop = daily.precipitation_probability_max && daily.precipitation_probability_max[0];
     text("weatherPlace", data.label || "--");
+    if (data.offline) {
+      text("temperature", "--");
+      text("weatherText", "Weather offline");
+      text("weatherRange", "No cache");
+      text("weatherWind", "PC network");
+      return;
+    }
     text("temperature", Number.isFinite(current.temperature_2m) ? `${Math.round(current.temperature_2m)}°` : "--");
-    text("weatherText", weatherCodes.get(current.weather_code) || "Weather");
+    text("weatherText", data.stale ? "Cached weather" : weatherCodes.get(current.weather_code) || "Weather");
     text("weatherRange", Number.isFinite(max) && Number.isFinite(min) ? `${Math.round(min)}-${Math.round(max)}°C` : "--");
     text("weatherWind", Number.isFinite(current.wind_speed_10m) ? `${Math.round(current.wind_speed_10m)} km/h` : `Rain ${pop || 0}%`);
   } catch (error) {

@@ -1,0 +1,73 @@
+const fs = require("fs");
+const path = require("path");
+
+const root = path.join(__dirname, "..");
+const dataDir = path.join(root, "data");
+const outPath = path.join(dataDir, "claude-status.json");
+
+function readStdin() {
+  return new Promise((resolve) => {
+    let input = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => {
+      input += chunk;
+    });
+    process.stdin.on("end", () => resolve(input));
+  });
+}
+
+function percentage(value) {
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : null;
+}
+
+function windowState(window) {
+  if (!window) return null;
+  return {
+    usedPercentage: percentage(Number(window.used_percentage)),
+    resetsAt: Number.isFinite(Number(window.resets_at)) ? Number(window.resets_at) : null
+  };
+}
+
+function writeStatus(payload) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(outPath, JSON.stringify(payload, null, 2));
+}
+
+function formatLine(payload) {
+  const model = payload.model || "Claude";
+  const fiveHour = payload.rateLimits.fiveHour?.usedPercentage;
+  const week = payload.rateLimits.sevenDay?.usedPercentage;
+  const pieces = [];
+  if (fiveHour != null) pieces.push(`5h ${Math.round(fiveHour)}%`);
+  if (week != null) pieces.push(`7d ${Math.round(week)}%`);
+  return pieces.length ? `${model} | ${pieces.join(" ")}` : model;
+}
+
+(async () => {
+  try {
+    const raw = await readStdin();
+    const data = raw ? JSON.parse(raw) : {};
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      model: data.model?.display_name || data.model?.id || null,
+      sessionId: data.session_id || null,
+      version: data.version || null,
+      costUsd: Number.isFinite(Number(data.cost?.total_cost_usd)) ? Number(data.cost.total_cost_usd) : null,
+      rateLimits: {
+        fiveHour: windowState(data.rate_limits?.five_hour),
+        sevenDay: windowState(data.rate_limits?.seven_day)
+      },
+      context: data.context_window
+        ? {
+            usedTokens: Number(data.context_window.used_tokens) || null,
+            maxTokens: Number(data.context_window.max_tokens) || null,
+            usedPercentage: percentage(Number(data.context_window.used_percentage))
+          }
+        : null
+    };
+    writeStatus(payload);
+    process.stdout.write(formatLine(payload));
+  } catch (error) {
+    process.stdout.write("Claude status unavailable");
+  }
+})();
