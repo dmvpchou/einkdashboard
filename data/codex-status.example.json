@@ -1,0 +1,9 @@
+{
+  "updatedAt": "2026-07-07T00:00:00.000Z",
+  "line": "7d 18% used",
+  "detail": "resets 18:00 - manual /usage snapshot",
+  "meter": {
+    "value": 18,
+    "label": "7d"
+  }
+}

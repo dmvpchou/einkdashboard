@@ -160,6 +160,8 @@ async function getToolStatus() {
 
   const claudeStatus = readJsonIfFresh(path.join(dataDir, "claude-status.json"), 15 * 60 * 1000);
   const claudeUsage = claudeStatus ? summarizeClaudeUsage(claudeStatus.data) : null;
+  const codexStatus = readJsonIfFresh(path.join(dataDir, "codex-status.json"), 6 * 60 * 60 * 1000);
+  const codexUsage = codexStatus ? summarizeGenericUsage(codexStatus.data) : null;
 
   const codexAuthPath = path.join(os.homedir(), ".codex", "auth.json");
   const codexHasAuth = fs.existsSync(codexAuthPath);
@@ -191,11 +193,30 @@ async function getToolStatus() {
     },
     codex: {
       label: "Codex",
-      state: codexVersion.ok || codexInstalled || codexHasAuth ? "ready" : "unknown",
-      line: codexLine,
-      detail: codexDetail,
-      meter: null
+      state: codexUsage || codexVersion.ok || codexInstalled || codexHasAuth ? "ready" : "unknown",
+      line: codexUsage?.line || codexLine,
+      detail: codexUsage?.detail || codexDetail,
+      meter: codexUsage?.meter || null
     }
+  };
+}
+
+function summarizeGenericUsage(status) {
+  if (!status || typeof status !== "object") return null;
+  const meterValue = Number(status.meter?.value ?? status.usedPercentage);
+  const meter = Number.isFinite(meterValue)
+    ? {
+        value: Math.max(0, Math.min(100, meterValue)),
+        label: status.meter?.label || status.window || "usage"
+      }
+    : null;
+  const rounded = meter ? Math.round(meter.value) : null;
+  const line = status.line || (rounded != null ? `${meter.label} ${rounded}% used` : null);
+  if (!line) return null;
+  return {
+    line,
+    detail: status.detail || status.source || "manual usage snapshot",
+    meter
   };
 }
 
@@ -211,7 +232,7 @@ function summarizeClaudeUsage(status) {
   const weekText = sevenDay?.usedPercentage != null ? `7d ${Math.round(sevenDay.usedPercentage)}%` : null;
   return {
     line: `${label} ${percent}% used`,
-    detail: [reset, weekText, status.model].filter(Boolean).join(" · "),
+    detail: [reset, weekText, status.model].filter(Boolean).join(" - "),
     meter: {
       value: percent,
       label

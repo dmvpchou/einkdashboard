@@ -45,3 +45,25 @@ In Claude Code, use `/statusline` and choose a custom command, or add the same
 command to your Claude Code settings. After Claude Code receives at least one
 API response, the dashboard can show the 5-hour and 7-day rate-limit usage when
 those fields are available.
+
+## Codex usage
+
+Codex usage can be shown when `data/codex-status.json` exists. This is a manual
+or integration target for now because Codex `/usage` is an interactive TUI
+command, not a statusline-style JSON feed.
+
+Copy `data/codex-status.example.json` to `data/codex-status.json` and update it
+from a Codex `/usage` snapshot or a future Analytics API integration:
+
+```json
+{
+  "line": "7d 18% used",
+  "detail": "resets 18:00 - manual /usage snapshot",
+  "meter": {
+    "value": 18,
+    "label": "7d"
+  }
+}
+```
+
+`data/codex-status.json` is ignored by Git because it is local usage state.
