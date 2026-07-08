@@ -229,7 +229,12 @@ function summarizeGenericUsage(status) {
   return {
     line,
     detail: status.detail || status.source || "manual usage snapshot",
-    meter
+    meter,
+    display: status.display || {
+      value: line.replace(/^5h\s+/i, "").replace(/^7d\s+/i, ""),
+      caption: meter?.label ? `${meter.label} estimate` : "usage",
+      stats: status.stats || []
+    }
   };
 }
 
@@ -250,6 +255,15 @@ function summarizeClaudeUsage(status) {
     meter: {
       value: percent,
       label
+    },
+    display: {
+      value: `${percent}%`,
+      caption: `${label} used`,
+      stats: [
+        { label: "left", value: `${leftPercent}%` },
+        { label: "reset", value: reset.replace(/^resets\s+/i, "") },
+        { label: "7d", value: sevenDay?.usedPercentage != null ? `${Math.round(sevenDay.usedPercentage)}%` : "--" }
+      ]
     }
   };
 }
@@ -314,7 +328,26 @@ function summarizeClaudeLocalHistory() {
           value: Math.round(usedPercent),
           label: "5h"
         }
-      : null
+      : null,
+    display: hasBudget
+      ? {
+          value: `${Math.round(usedPercent)}%`,
+          caption: "5h used est.",
+          stats: [
+            { label: "left", value: formatTokens(remaining) },
+            { label: "used", value: formatTokens(fiveHour.total) },
+            { label: "reset", value: resetText.replace(/^resets\s+/i, "") }
+          ]
+        }
+      : {
+          value: formatTokens(fiveHour.total),
+          caption: "5h used est.",
+          stats: [
+            { label: "left", value: "--" },
+            { label: "used", value: formatTokens(fiveHour.total) },
+            { label: "reset", value: resetText.replace(/^resets\s+/i, "") }
+          ]
+        }
   };
 }
 

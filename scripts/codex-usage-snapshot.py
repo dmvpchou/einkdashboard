@@ -108,6 +108,15 @@ def main():
         "detail": " - ".join(detail) + " - est.",
         "source": "local Codex logs",
         "window": label,
+        "display": {
+            "value": fmt_tokens(preferred["total"]),
+            "caption": f"{label} used est.",
+            "stats": [
+                {"label": "cached", "value": fmt_tokens(preferred["cached"])},
+                {"label": "output", "value": fmt_tokens(preferred["output"])},
+                {"label": "model", "value": ", ".join(sorted(preferred["models"])) if preferred["models"] else "--"},
+            ],
+        },
         "tokens": {
             "fiveHour": {k: v for k, v in five_hour.items() if k != "models"},
             "sevenDay": {k: v for k, v in seven_day.items() if k != "models"},

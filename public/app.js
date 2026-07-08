@@ -70,10 +70,28 @@ function setDot(id, state) {
 }
 
 function updateToolCard(prefix, tool) {
-  text(`${prefix}Value`, tool.line || "--");
+  const display = tool.display || {};
+  text(`${prefix}Value`, display.value || tool.line || "--");
+  text(`${prefix}Caption`, display.caption || "");
   text(`${prefix}Note`, tool.detail || "");
+  updateStats(prefix, display.stats || []);
   updateMeter(prefix, tool.meter);
   setDot(`${prefix}Dot`, tool.state);
+}
+
+function updateStats(prefix, stats) {
+  const container = document.getElementById(`${prefix}Stats`);
+  if (!container) return;
+  container.textContent = "";
+  for (const item of stats.slice(0, 3)) {
+    const stat = document.createElement("div");
+    const label = document.createElement("span");
+    const value = document.createElement("strong");
+    label.textContent = item.label || "";
+    value.textContent = item.value || "";
+    stat.append(label, value);
+    container.appendChild(stat);
+  }
 }
 
 function updateMeter(prefix, meter) {

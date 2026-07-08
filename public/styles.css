@@ -129,7 +129,7 @@ body {
   border: 2px solid var(--line);
   padding: 16px 20px;
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: auto 1fr auto auto auto;
   background: var(--card);
 }
 
@@ -156,18 +156,59 @@ body {
   background: var(--warn);
 }
 
-.usage-value {
+.usage-main {
   align-self: center;
+}
+
+.usage-value {
   max-width: 100%;
-  font-size: 2.65rem;
+  font-size: 3.15rem;
   line-height: 1.02;
   font-weight: 760;
   overflow-wrap: normal;
 }
 
+.usage-caption {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.usage-stats div {
+  border-top: 2px solid var(--line);
+  padding-top: 5px;
+}
+
+.usage-stats span,
+.usage-stats strong {
+  display: block;
+}
+
+.usage-stats span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.usage-stats strong {
+  margin-top: 2px;
+  font-size: 1.08rem;
+  line-height: 1.1;
+}
+
 .usage-note {
   min-height: 1.45em;
-  font-size: 1rem;
+  font-size: 0.88rem;
   line-height: 1.25;
 }
 
@@ -236,7 +277,7 @@ body {
   }
 
   .usage-value {
-    font-size: 3.15rem;
+    font-size: 3.5rem;
   }
 }
 
