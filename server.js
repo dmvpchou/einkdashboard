@@ -230,11 +230,12 @@ function summarizeClaudeUsage(status) {
 
   const label = fiveHour?.usedPercentage != null ? "5h" : "7d";
   const percent = Math.round(preferred.usedPercentage);
+  const leftPercent = Math.max(0, 100 - percent);
   const reset = preferred.resetsAt ? formatReset(preferred.resetsAt) : "reset unknown";
   const weekText = sevenDay?.usedPercentage != null ? `7d ${Math.round(sevenDay.usedPercentage)}%` : null;
   return {
     line: `${label} ${percent}% used`,
-    detail: [reset, weekText, status.model].filter(Boolean).join(" - "),
+    detail: [`${leftPercent}% left`, reset, weekText, status.model].filter(Boolean).join(" - "),
     meter: {
       value: percent,
       label
@@ -293,10 +294,10 @@ function summarizeClaudeLocalHistory() {
   const resetText = oldestInFiveHour ? formatResetMs(oldestInFiveHour + fiveHourMs) : "reset unknown";
 
   return {
-    line: hasBudget ? `5h ${Math.round(usedPercent)}% used` : `5h ${formatTokens(fiveHour.total)}`,
+    line: hasBudget ? `5h ${Math.round(usedPercent)}% used` : "5h usage",
     detail: hasBudget
-      ? `${formatTokens(remaining)} left - ${resetText}`
-      : `${resetText} - set budget for left`,
+      ? `${formatTokens(remaining)} left - ${formatTokens(fiveHour.total)} used - ${resetText} - est.`
+      : `${formatTokens(fiveHour.total)} used - ${resetText} - est.`,
     meter: hasBudget
       ? {
           value: Math.round(usedPercent),
