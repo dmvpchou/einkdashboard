@@ -4,6 +4,7 @@ const path = require("path");
 const root = path.join(__dirname, "..");
 const dataDir = path.join(root, "data");
 const outPath = path.join(dataDir, "claude-status.json");
+const sharedStatusDir = path.join(require("os").homedir(), ".ai-usage", "claude-status");
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -31,6 +32,43 @@ function windowState(window) {
 function writeStatus(payload) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(payload, null, 2));
+
+  const account = safeName(process.env.AI_USAGE_CLAUDE_ACCOUNT || process.env.CLAUDE_CONFIG_DIR || "default");
+  fs.mkdirSync(sharedStatusDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(sharedStatusDir, `${account}.json`),
+    JSON.stringify(toSharedSnapshot(payload), null, 2)
+  );
+}
+
+function safeName(value) {
+  const base = path.basename(String(value || "default")).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[.-]+|[.-]+$/g, "");
+  return (base || "default").slice(0, 80);
+}
+
+function toSharedSnapshot(payload) {
+  return {
+    schema_version: 1,
+    captured_at: Date.now() / 1000,
+    account: safeName(process.env.AI_USAGE_CLAUDE_ACCOUNT || process.env.CLAUDE_CONFIG_DIR || "default"),
+    session_id: payload.sessionId,
+    version: payload.version,
+    model: payload.model ? { display_name: payload.model } : null,
+    rate_limits: {
+      five_hour: fromWindowState(payload.rateLimits.fiveHour),
+      seven_day: fromWindowState(payload.rateLimits.sevenDay)
+    },
+    context_window: payload.context,
+    cost: payload.costUsd == null ? null : { total_cost_usd: payload.costUsd }
+  };
+}
+
+function fromWindowState(window) {
+  if (!window) return null;
+  return {
+    used_percentage: window.usedPercentage,
+    resets_at: window.resetsAt
+  };
 }
 
 function formatLine(payload) {

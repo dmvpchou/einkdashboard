@@ -160,7 +160,7 @@ async function getToolStatus() {
 
   await refreshCodexUsageSnapshot();
 
-  const claudeStatus = readJsonIfFresh(path.join(dataDir, "claude-status.json"), 15 * 60 * 1000);
+  const claudeStatus = readClaudeStatusSnapshot();
   const claudeUsage = claudeStatus
     ? summarizeClaudeUsage(claudeStatus.data)
     : summarizeClaudeLocalHistory();
@@ -235,6 +235,71 @@ function summarizeGenericUsage(status) {
       caption: meter?.label ? `${meter.label} estimate` : "usage",
       stats: status.stats || []
     }
+  };
+}
+
+function readClaudeStatusSnapshot() {
+  const local = readJsonIfFresh(path.join(dataDir, "claude-status.json"), 15 * 60 * 1000);
+  if (local) {
+    return {
+      ...local,
+      data: normalizeClaudeStatus(local.data)
+    };
+  }
+
+  const sharedRoot = path.join(os.homedir(), ".ai-usage", "claude-status");
+  const files = listFiles(sharedRoot, ".json")
+    .map((filePath) => {
+      try {
+        const stat = fs.statSync(filePath);
+        return { filePath, mtimeMs: stat.mtimeMs, ageMs: Date.now() - stat.mtimeMs };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .filter((item) => item.ageMs <= 30 * 60 * 1000)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  for (const item of files) {
+    try {
+      return {
+        data: normalizeClaudeStatus(JSON.parse(fs.readFileSync(item.filePath, "utf8"))),
+        ageMs: item.ageMs
+      };
+    } catch {
+      // Try the next shared snapshot.
+    }
+  }
+
+  return null;
+}
+
+function normalizeClaudeStatus(status) {
+  if (!status || typeof status !== "object") return status;
+  if (status.rateLimits) return status;
+
+  const fiveHour = status.rate_limits?.five_hour;
+  const sevenDay = status.rate_limits?.seven_day;
+  return {
+    updatedAt: status.captured_at ? new Date(Number(status.captured_at) * 1000).toISOString() : null,
+    model: status.model?.display_name || status.model?.id || null,
+    sessionId: status.session_id || null,
+    version: status.version || null,
+    costUsd: Number.isFinite(Number(status.cost?.total_cost_usd)) ? Number(status.cost.total_cost_usd) : null,
+    rateLimits: {
+      fiveHour: normalizeClaudeWindow(fiveHour),
+      sevenDay: normalizeClaudeWindow(sevenDay)
+    },
+    context: status.context_window || null
+  };
+}
+
+function normalizeClaudeWindow(window) {
+  if (!window) return null;
+  return {
+    usedPercentage: Number.isFinite(Number(window.used_percentage)) ? Number(window.used_percentage) : null,
+    resetsAt: Number.isFinite(Number(window.resets_at)) ? Number(window.resets_at) : null
   };
 }
 

@@ -49,8 +49,10 @@
 
 5. Codex usage 管線
    - `scripts/codex-usage-snapshot.py`
-   - 讀取本機 `%USERPROFILE%\.codex\logs_2.sqlite`
-   - 聚合 `response.completed` usage events
+   - 優先讀取本機 `~/.codex/sessions/**/*.jsonl` 的 `token_count` events 與 `rate_limits`
+   - 可顯示 Codex 本機官方 metadata：5h / 7d 百分比、剩餘百分比、reset 時間
+   - 若 session logs 沒有 rate-limit metadata，fallback 讀取 `%USERPROFILE%\.codex\logs_2.sqlite`
+   - 聚合 `response.completed` usage events 作為 token 估算
    - 產生 `data/codex-status.json`
    - dashboard 顯示 5h token、cached token、7d token、主要 model
 
@@ -166,6 +168,7 @@
 ### 低優先級
 
 - 若未來有 OpenAI Enterprise Analytics API 權限，新增官方 Codex usage adapter。
+- 追蹤 [neo-wabow/AIBar](https://github.com/neo-wabow/AIBar) 的資料來源策略；目前已吸收 Codex session `rate_limits` 與 Claude statusline snapshot 共享格式。
 - 新增不同版型：portrait compact、desktop preview、large clock mode。
 - 做一個 setup checklist 頁面。
 - 將 usage history 存成簡單趨勢圖，但要小心 E Ink 不適合細線圖。

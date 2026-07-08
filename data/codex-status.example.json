@@ -1,9 +1,29 @@
 {
   "updatedAt": "2026-07-07T00:00:00.000Z",
-  "line": "7d 18% used",
-  "detail": "resets 18:00 - manual /usage snapshot",
+  "line": "5h 11% used",
+  "detail": "89% left - resets 07:57 - 7d 2% - official local metadata",
+  "source": "local Codex session logs",
+  "window": "5h",
   "meter": {
-    "value": 18,
-    "label": "7d"
+    "value": 11,
+    "label": "5h"
+  },
+  "display": {
+    "value": "11%",
+    "caption": "5h used",
+    "stats": [
+      {
+        "label": "left",
+        "value": "89%"
+      },
+      {
+        "label": "reset",
+        "value": "07:57"
+      },
+      {
+        "label": "7d",
+        "value": "2%"
+      }
+    ]
   }
 }

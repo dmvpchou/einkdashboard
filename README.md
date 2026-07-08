@@ -41,8 +41,10 @@ status line data. Configure Claude Code to run:
 node C:\Users\user\Documents\Codex\2026-07-05\boox-leaf2-pc-codex-claude-code\scripts\claude-statusline.js
 ```
 
-The script writes `data/claude-status.json`, which the dashboard reads. The
-JSON file is ignored by Git because it is local usage state.
+The script writes `data/claude-status.json`, which the dashboard reads. It also
+writes an AIBar-compatible snapshot under `~/.ai-usage/claude-status/`, so other
+local usage tools can share the same Claude Code statusline feed. These JSON
+files are ignored by Git because they are local usage state.
 
 In Claude Code, use `/statusline` and choose a custom command, or add the same
 command to your Claude Code settings. After Claude Code receives at least one
@@ -56,12 +58,16 @@ plus an estimated reset time. To estimate remaining tokens, set
 
 ## Codex usage
 
-Codex usage can be shown when `data/codex-status.json` exists. This is a manual
-or integration target for now because Codex `/usage` is an interactive TUI
-command, not a statusline-style JSON feed.
+Codex usage is collected from local Codex state by `scripts/codex-usage-snapshot.py`.
+The server runs this script before returning `/api/status`.
 
-Copy `data/codex-status.example.json` to `data/codex-status.json` and update it
-from a Codex `/usage` snapshot or a future Analytics API integration:
+The script first scans `~/.codex/sessions/**/*.jsonl` for `token_count` events
+and Codex `rate_limits` metadata. When rate-limit metadata is present, the
+dashboard shows official local usage percentages and reset times. If session
+rate-limit metadata is unavailable, it falls back to `%USERPROFILE%\.codex\logs_2.sqlite`
+and shows a token-based estimate.
+
+You can still create `data/codex-status.json` manually for testing:
 
 ```json
 {
@@ -75,3 +81,9 @@ from a Codex `/usage` snapshot or a future Analytics API integration:
 ```
 
 `data/codex-status.json` is ignored by Git because it is local usage state.
+
+## Reference
+
+The Codex session-log and Claude statusline snapshot strategy was informed by
+[neo-wabow/AIBar](https://github.com/neo-wabow/AIBar), adapted here for a
+Windows + BOOX Leaf2 browser dashboard instead of a macOS menu bar app.
