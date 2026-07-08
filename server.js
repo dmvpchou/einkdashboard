@@ -158,6 +158,8 @@ async function getToolStatus() {
     runCommand("codex", ["--version"])
   ]);
 
+  await refreshCodexUsageSnapshot();
+
   const claudeStatus = readJsonIfFresh(path.join(dataDir, "claude-status.json"), 15 * 60 * 1000);
   const claudeUsage = claudeStatus
     ? summarizeClaudeUsage(claudeStatus.data)
@@ -201,6 +203,15 @@ async function getToolStatus() {
       meter: codexUsage?.meter || null
     }
   };
+}
+
+async function refreshCodexUsageSnapshot() {
+  const scriptPath = path.join(root, "scripts", "codex-usage-snapshot.py");
+  if (!fs.existsSync(scriptPath)) return;
+  const result = await runCommand("python", [scriptPath, "--quiet"]);
+  if (!result.ok) {
+    await runCommand("py", [scriptPath, "--quiet"]);
+  }
 }
 
 function summarizeGenericUsage(status) {
