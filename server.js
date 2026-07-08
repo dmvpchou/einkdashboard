@@ -17,7 +17,7 @@ const defaultConfig = {
     longitude: 121.5654,
     timezone: "Asia/Taipei"
   },
-  refreshSeconds: 180
+  refreshSeconds: 60
 };
 
 function loadConfig() {
