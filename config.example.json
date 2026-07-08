@@ -6,5 +6,8 @@
     "longitude": 121.5654,
     "timezone": "Asia/Taipei"
   },
-  "refreshSeconds": 180
+  "refreshSeconds": 180,
+  "claude": {
+    "fiveHourTokenBudget": null
+  }
 }

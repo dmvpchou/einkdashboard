@@ -23,7 +23,10 @@ Copy `config.example.json` to `config.json` and adjust the location or port.
     "longitude": 121.5654,
     "timezone": "Asia/Taipei"
   },
-  "refreshSeconds": 180
+  "refreshSeconds": 180,
+  "claude": {
+    "fiveHourTokenBudget": null
+  }
 }
 ```
 
@@ -45,6 +48,11 @@ In Claude Code, use `/statusline` and choose a custom command, or add the same
 command to your Claude Code settings. After Claude Code receives at least one
 API response, the dashboard can show the 5-hour and 7-day rate-limit usage when
 those fields are available.
+
+When statusline data is not available, the dashboard falls back to local Claude
+Code JSONL history under `~/.claude/projects` and shows a 5-hour token total
+plus an estimated reset time. To estimate remaining tokens, set
+`claude.fiveHourTokenBudget` in `config.json`.
 
 ## Codex usage
 

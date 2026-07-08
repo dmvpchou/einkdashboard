@@ -159,7 +159,9 @@ async function getToolStatus() {
   ]);
 
   const claudeStatus = readJsonIfFresh(path.join(dataDir, "claude-status.json"), 15 * 60 * 1000);
-  const claudeUsage = claudeStatus ? summarizeClaudeUsage(claudeStatus.data) : null;
+  const claudeUsage = claudeStatus
+    ? summarizeClaudeUsage(claudeStatus.data)
+    : summarizeClaudeLocalHistory();
   const codexStatus = readJsonIfFresh(path.join(dataDir, "codex-status.json"), 6 * 60 * 60 * 1000);
   const codexUsage = codexStatus ? summarizeGenericUsage(codexStatus.data) : null;
 
@@ -240,6 +242,111 @@ function summarizeClaudeUsage(status) {
   };
 }
 
+function summarizeClaudeLocalHistory() {
+  const rootPath = path.join(os.homedir(), ".claude", "projects");
+  const files = listFiles(rootPath, ".jsonl");
+  if (!files.length) return null;
+
+  const now = Date.now();
+  const fiveHourMs = 5 * 60 * 60 * 1000;
+  const sevenDayMs = 7 * 24 * 60 * 60 * 1000;
+  const fiveHour = emptyUsageWindow();
+  const sevenDay = emptyUsageWindow();
+  let oldestInFiveHour = null;
+
+  for (const file of files) {
+    let lines;
+    try {
+      lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
+    } catch {
+      continue;
+    }
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const timestamp = Date.parse(entry.timestamp || entry.created_at || "");
+      if (Number.isNaN(timestamp)) continue;
+      const usage = entry.message?.usage || entry.usage;
+      if (!usage) continue;
+
+      if (now - timestamp <= fiveHourMs) {
+        addUsage(fiveHour, usage);
+        oldestInFiveHour = oldestInFiveHour == null ? timestamp : Math.min(oldestInFiveHour, timestamp);
+      }
+      if (now - timestamp <= sevenDayMs) {
+        addUsage(sevenDay, usage);
+      }
+    }
+  }
+
+  if (!fiveHour.entries && !sevenDay.entries) return null;
+
+  const budget = Number(config.claude?.fiveHourTokenBudget);
+  const hasBudget = Number.isFinite(budget) && budget > 0;
+  const usedPercent = hasBudget ? Math.min(100, (fiveHour.total / budget) * 100) : null;
+  const remaining = hasBudget ? Math.max(0, budget - fiveHour.total) : null;
+  const resetText = oldestInFiveHour ? formatResetMs(oldestInFiveHour + fiveHourMs) : "reset unknown";
+
+  return {
+    line: hasBudget ? `5h ${Math.round(usedPercent)}% used` : `5h ${formatTokens(fiveHour.total)}`,
+    detail: hasBudget
+      ? `${formatTokens(remaining)} left - ${resetText}`
+      : `${resetText} - set budget for left`,
+    meter: hasBudget
+      ? {
+          value: Math.round(usedPercent),
+          label: "5h"
+        }
+      : null
+  };
+}
+
+function emptyUsageWindow() {
+  return {
+    entries: 0,
+    input: 0,
+    output: 0,
+    cacheCreate: 0,
+    cacheRead: 0,
+    total: 0
+  };
+}
+
+function addUsage(target, usage) {
+  target.entries += 1;
+  target.input += Number(usage.input_tokens) || 0;
+  target.output += Number(usage.output_tokens) || 0;
+  target.cacheCreate += Number(usage.cache_creation_input_tokens) || 0;
+  target.cacheRead += Number(usage.cache_read_input_tokens) || 0;
+  target.total +=
+    (Number(usage.input_tokens) || 0) +
+    (Number(usage.output_tokens) || 0) +
+    (Number(usage.cache_creation_input_tokens) || 0) +
+    (Number(usage.cache_read_input_tokens) || 0);
+}
+
+function listFiles(rootPath, extension) {
+  const files = [];
+  try {
+    for (const entry of fs.readdirSync(rootPath, { withFileTypes: true })) {
+      const entryPath = path.join(rootPath, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...listFiles(entryPath, extension));
+      } else if (entry.name.endsWith(extension)) {
+        files.push(entryPath);
+      }
+    }
+  } catch {
+    return files;
+  }
+  return files;
+}
+
 function formatReset(epochSeconds) {
   const date = new Date(epochSeconds * 1000);
   if (Number.isNaN(date.getTime())) return "reset unknown";
@@ -248,6 +355,23 @@ function formatReset(epochSeconds) {
     minute: "2-digit",
     hour12: false
   })}`;
+}
+
+function formatResetMs(epochMs) {
+  const date = new Date(epochMs);
+  if (Number.isNaN(date.getTime())) return "reset unknown";
+  return `resets ${date.toLocaleTimeString("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  })}`;
+}
+
+function formatTokens(value) {
+  const tokens = Math.max(0, Math.round(Number(value) || 0));
+  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M tok`;
+  if (tokens >= 1000) return `${Math.round(tokens / 1000)}K tok`;
+  return `${tokens} tok`;
 }
 
 function findExecutableOnPath(name) {
