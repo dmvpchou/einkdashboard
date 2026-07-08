@@ -51,6 +51,16 @@ command to your Claude Code settings. After Claude Code receives at least one
 API response, the dashboard can show the 5-hour and 7-day rate-limit usage when
 those fields are available.
 
+On Windows, you can install the statusline command automatically:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-claude-statusline.ps1
+```
+
+Then restart Claude Code and send one message. Claude Code only emits
+`rate_limits` after a response, so the dashboard will keep showing the local
+token estimate until that first statusline snapshot is captured.
+
 When statusline data is not available, the dashboard falls back to local Claude
 Code JSONL history under `~/.claude/projects` and shows a 5-hour token total
 plus an estimated reset time. To estimate remaining tokens, set
