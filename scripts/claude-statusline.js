@@ -6,6 +6,12 @@ const dataDir = path.join(root, "data");
 const outPath = path.join(dataDir, "claude-status.json");
 const sharedStatusDir = path.join(require("os").homedir(), ".ai-usage", "claude-status");
 
+function accountName() {
+  const accountIndex = process.argv.indexOf("--account");
+  const argument = accountIndex >= 0 ? process.argv[accountIndex + 1] : "";
+  return safeName(argument || process.env.AI_USAGE_CLAUDE_ACCOUNT || process.env.CLAUDE_CONFIG_DIR || "default");
+}
+
 function readStdin() {
   return new Promise((resolve) => {
     let input = "";
@@ -33,7 +39,7 @@ function writeStatus(payload) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(payload, null, 2));
 
-  const account = safeName(process.env.AI_USAGE_CLAUDE_ACCOUNT || process.env.CLAUDE_CONFIG_DIR || "default");
+  const account = accountName();
   fs.mkdirSync(sharedStatusDir, { recursive: true });
   fs.writeFileSync(
     path.join(sharedStatusDir, `${account}.json`),
@@ -50,7 +56,7 @@ function toSharedSnapshot(payload) {
   return {
     schema_version: 1,
     captured_at: Date.now() / 1000,
-    account: safeName(process.env.AI_USAGE_CLAUDE_ACCOUNT || process.env.CLAUDE_CONFIG_DIR || "default"),
+    account: accountName(),
     session_id: payload.sessionId,
     version: payload.version,
     model: payload.model ? { display_name: payload.model } : null,

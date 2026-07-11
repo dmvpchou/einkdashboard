@@ -58,9 +58,11 @@ function Convert-ToHashtable {
   }
 }
 
-$command = 'node "{0}"' -f $captureScript
+$captureScriptForShell = $captureScript.Replace('\', '/')
+$command = 'node "{0}"' -f $captureScriptForShell
 if ($AccountName.Trim().Length -gt 0) {
-  $command = '$env:AI_USAGE_CLAUDE_ACCOUNT="{0}"; {1}' -f $AccountName.Trim(), $command
+  $safeAccountName = $AccountName.Trim().Replace('"', '')
+  $command = '{0} --account "{1}"' -f $command, $safeAccountName
 }
 
 $statusLine = @{
@@ -77,18 +79,8 @@ if ((Test-Path $settingsPath) -and ((Get-Content -Raw -LiteralPath $settingsPath
     $settings["statusLine"] = $statusLine
     $nextSettings = $settings | ConvertTo-Json -Depth 20
   } catch {
-    Write-Host "Settings are not strict JSON; applying text-based statusLine insertion."
-    $statusLineJson = $statusLine | ConvertTo-Json -Depth 10
-    $trimmed = $rawSettings.TrimEnd()
-    if ($trimmed -match '"statusLine"\s*:') {
-      throw "settings.json already contains statusLine, but it is not strict JSON. Please edit it manually or restore a backup."
-    }
-    if (-not $trimmed.EndsWith("}")) {
-      throw "settings.json does not end with a top-level object. Please edit it manually or restore a backup."
-    }
-    $withoutFinalBrace = $trimmed.Substring(0, $trimmed.Length - 1).TrimEnd()
-    $separator = if ($withoutFinalBrace.EndsWith("{")) { "" } else { "," }
-    $nextSettings = "{0}{1}`n  ""statusLine"": {2}`n}}" -f $withoutFinalBrace, $separator, ($statusLineJson -replace "`r?`n", "`n  ")
+    $repairScript = Join-Path $repoRoot "scripts\repair-claude-settings.js"
+    throw "settings.json is invalid JSON. Run: node `"$repairScript`" --write ; then run this installer again."
   }
 } else {
   $settings = @{

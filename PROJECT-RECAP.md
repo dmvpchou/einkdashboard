@@ -1,231 +1,104 @@
-# Leaf2 E-Ink Dashboard 對話產出整理
+# Leaf2 E-Ink Dashboard 專案整理
 
-更新日：2026-07-08
+更新日期：2026-07-11
 
-這份文件把目前對話中已經落地的產出，用四個綱領整理成可接續工作的版本：
+> 簡約是細膩的極致
+>
+> Simplicity is the ultimate sophistication.
 
-- `ONE-PERSON-COMPANY.md`：這個專案服務什麼目標，現在是否值得繼續投入。
-- `DELEGATION-RULES.md`：哪些工作可交給 Codex / Claude Code，哪些仍需要人判斷。
-- `PITFALL-LEDGER.md`：目前踩過的坑、原因、修正方式。
-- `PARKING-LOT.md`：先記下但不立刻做的後續項目。
+這是一個放在七吋 BOOX Leaf2 上、從遠處一眼讀懂的資訊面板，不是縮小版分析後台。畫面只保留時間、天氣、Codex 與 Claude Code 的五小時用量、剩餘額度和重置時間。
 
-> 註：原始綱領檔案讀取時有編碼亂碼，但檔名與可辨識段落足夠判斷其用途；本文件依照可辨識的結構整理。
+## 目前成果
 
-## 1. One-Person Company 視角
+- Node.js 伺服器監聽 `0.0.0.0:8765`，提供靜態頁面、`/api/status` 與 `/api/weather`。
+- Leaf2 直向版面上方並排顯示時間與天氣，下方為每五分鐘切換中英文的提醒句。
+- Codex 優先讀取 `~/.codex/sessions/**/*.jsonl` 的官方本機 `rate_limits`；缺少資料時才改用本機 token 估算。
+- Claude Code 優先讀取 statusline 寫出的快照；尚未取得官方 rate limit 時，使用 `~/.claude/projects` 的五小時 token 估算。
+- 官方百分比與本機估算在 API 和畫面上都有明確標示，未知值顯示 `--`，不假裝精確。
+- 天氣由 Open-Meteo 提供，BOOX 上用大型中文天氣文字，避免裝置缺少 emoji 字型。
+- 測試涵蓋 usage 顯示契約、官方與估算狀態，以及 Claude 設定檔修復。
 
-### 專案定位
+## 啟動與連線
 
-把 BOOX Leaf2 變成桌上的低干擾 E Ink 儀表板，顯示：
-
-- 目前時間與日期
-- 台北天氣
-- Codex 使用量估算
-- Claude Code 5 小時視窗使用量、reset 時間與剩餘狀態
-
-這不是展示型網站，而是一個給自己長時間工作的 operational board：不用切瀏覽器、不用一直打 `/usage`，抬頭就能看到是否該繼續跑 agent 或等待 reset。
-
-### 已經產出的可用能力
-
-1. 本機 Node.js dashboard server
-   - `server.js`
-   - 監聽 `0.0.0.0:8765`
-   - 提供 `/api/status` 與 `/api/weather`
-   - 靜態頁面放在 `public/`
-
-2. Leaf2 連線方式
-   - 優先使用 USB + ADB reverse
-   - Leaf2 瀏覽器開 `http://127.0.0.1:8765`
-   - 避開 Wi-Fi 防火牆、AP isolation、區網 IP 變動等問題
-
-3. E Ink 直放介面
-   - 針對 Leaf2 portrait 顯示調整
-   - 高對比、少色、粗線框
-   - 將用量資訊改成更容易一眼掃描的卡片：大標題、meter、重點數字
-
-4. Claude Code usage 管線
-   - `scripts/claude-statusline.js`
-   - 可接 Claude Code statusline JSON
-   - 若沒有 statusline 真實百分比，會 fallback 掃描本機 `.claude/projects/*.jsonl` 做 5h / 7d token 估算
-
-5. Codex usage 管線
-   - `scripts/codex-usage-snapshot.py`
-   - 優先讀取本機 `~/.codex/sessions/**/*.jsonl` 的 `token_count` events 與 `rate_limits`
-   - 可顯示 Codex 本機官方 metadata：5h / 7d 百分比、剩餘百分比、reset 時間
-   - 若 session logs 沒有 rate-limit metadata，fallback 讀取 `%USERPROFILE%\.codex\logs_2.sqlite`
-   - 聚合 `response.completed` usage events 作為 token 估算
-   - 產生 `data/codex-status.json`
-   - dashboard 顯示 5h token、cached token、7d token、主要 model
-
-6. GitHub repo
-   - remote: `https://github.com/dmvpchou/einkdashboard.git`
-   - 已推送到 GitHub
-
-## 2. Delegation Rules
-
-### L1：可以機械化執行
-
-這些工作不需要太多判斷，可以交給腳本、排程或明確指令：
-
-- 啟動 server：`npm start`
-- 建立 ADB reverse：`adb reverse tcp:8765 tcp:8765`
-- Leaf2 重新整理：`http://127.0.0.1:8765/?v=5`
-- 讀取 weather cache
-- 產生 Codex snapshot：`python scripts/codex-usage-snapshot.py`
-- 寫入 `data/*.json`
-- git status / commit / push
-
-### L2：適合交給 Codex 或 Claude Code 協作
-
-這些工作需要理解現有程式與使用情境，但可以由 agent 產出第一版：
-
-- Leaf2 版面調整與視覺層級重排
-- usage card 的文字、meter、欄位設計
-- Claude / Codex data adapter
-- README 與操作文件
-- Windows / BOOX 連線問題排查
-- 將錯誤狀態轉成可讀的 dashboard 狀態
-- 把 browser cache 問題改成 asset versioning
-
-### L3：仍需要人決策
-
-這些不是 coding 問題，而是取捨問題：
-
-- 是否信任本機 logs 估算，還是只接受官方 usage 數字
-- Claude 5h token budget 要設定多少才合理
-- dashboard 是否可以讀 `.claude` / `.codex` 本機紀錄
-- Codex usage 要顯示 token、百分比、剩餘額度，還是 reset 時間優先
-- Leaf2 是否要長期作為專用顯示器
-
-## 3. Pitfall Ledger
-
-### Wi-Fi 網址連不到
-
-- 現象：Leaf2 用 Wi-Fi 開 PC IP 失敗。
-- 可能原因：Windows 防火牆、路由器 AP isolation、IP 變動。
-- 修正：改用 USB + `adb reverse tcp:8765 tcp:8765`。
-- 狀態：已採用 USB reverse 作為主要方案。
-
-### ADB / gh / codex 指令找不到
-
-- 現象：PowerShell 顯示 `無法辨識 'adb'`、`無法辨識 'gh'`、`無法辨識 'codex'`。
-- 原因：CLI 安裝後 PATH 尚未更新，或 Windows app alias 與實際執行檔不同。
-- 修正：重新開 PowerShell、確認 PATH、必要時用完整路徑或改讀本機資料檔。
-- 狀態：ADB 已可用；Codex CLI 則改用本機 SQLite logs 估算 usage。
-
-### WindowsApps codex.exe 存取被拒
-
-- 現象：直接執行 WindowsApps 裡的 `codex.exe` 失敗。
-- 原因：WindowsApps 權限與 app packaging 限制。
-- 修正：不依賴直接執行該 exe，改讀 Codex app 寫出的本機 log database。
-- 狀態：已繞開。
-
-### BOOX 瀏覽器 cache 造成畫面不更新
-
-- 現象：PC 上更新了，Leaf2 上沒變。
-- 原因：BOOX 內建瀏覽器 cache 比較頑固。
-- 修正：CSS/JS 加 asset version，必要時 URL 加 `?v=N` 強制刷新。
-- 狀態：已處理，但後續仍可再做自動 cache busting。
-
-### UI 不容易一眼看懂用量
-
-- 現象：原本只看到 `5h usage` 與一串 token 文字，不像真正的用量儀表。
-- 原因：資料是 log-like caption，不是 dashboard-first 呈現。
-- 修正：改成 usage card：大數字、meter、剩餘或 reset、三個 key stats。
-- 狀態：已改善；仍可接官方百分比後再提升。
-
-### Weather 502
-
-- 現象：Leaf2 顯示 `Weather unavailable HTTP 502`。
-- 原因：Open-Meteo 或網路暫時不可用。
-- 修正：server 加 weather cache fallback。
-- 狀態：已有基本 fallback。
-
-### Claude / Codex exact quota 不一定可得
-
-- 現象：想看官方那種百分比或剩餘額度，但 local logs 只能估算。
-- 原因：Claude Code statusline 可提供 rate limit 欄位，但要正確接入；Codex 個人 usage 沒有穩定公開 API 可直接抓 exact remaining quota。
-- 修正：資料來源標示 `est.`；Claude 優先接 statusline，Codex 使用本機 logs 估算。
-- 狀態：Claude 待接完整官方格式；Codex 目前是 local estimate。
-
-## 4. Parking Lot
-
-### 高優先級
-
-- 確認 Claude Code statusline 是否已實際寫入 `data/claude-status.json`。
-- 把 Claude 官方 `/usage` 近似格式轉成 dashboard 欄位：percentage、remaining、reset time。
-- 讓 Claude usage 在 Leaf2 上顯示成「百分比 + reset 時間 + 剩餘量」。
-- 加一個 local config，讓使用者填 Claude 5h token budget，估算 remaining。
-- 讓 Codex usage 顯示更像 quota panel，而不是 token log。
-
-### 中優先級
-
-- Windows 開機自動啟動 `npm start`。
-- 自動執行 `adb reverse tcp:8765 tcp:8765`。
-- Leaf2 全螢幕 / kiosk 模式設定。
-- dashboard 加最後更新時間與資料來源狀態。
-- 天氣 API fallback 更完整，避免一個 502 讓整張卡變空。
-
-### 低優先級
-
-- 若未來有 OpenAI Enterprise Analytics API 權限，新增官方 Codex usage adapter。
-- 追蹤 [neo-wabow/AIBar](https://github.com/neo-wabow/AIBar) 的資料來源策略；目前已吸收 Codex session `rate_limits` 與 Claude statusline snapshot 共享格式。
-- 新增不同版型：portrait compact、desktop preview、large clock mode。
-- 做一個 setup checklist 頁面。
-- 將 usage history 存成簡單趨勢圖，但要小心 E Ink 不適合細線圖。
-
-## 5. 目前操作手冊
-
-### 啟動 PC server
+在專案目錄啟動伺服器：
 
 ```powershell
 npm start
 ```
 
-### 連接 Leaf2
+USB 連線 Leaf2、允許 USB 偵錯後執行：
 
 ```powershell
 adb devices
 adb reverse tcp:8765 tcp:8765
 ```
 
-Leaf2 瀏覽器開：
+接著在 Leaf2 瀏覽器開啟：
 
 ```text
 http://127.0.0.1:8765
 ```
 
-若畫面疑似 cache：
+`adb reverse` 不是永久設定；USB 重接、ADB 重啟或裝置重開後都可能需要重新執行。
 
-```text
-http://127.0.0.1:8765/?v=5
-```
+## Claude Code statusline
 
-### Claude Code statusline 建議命令
+自動安裝：
 
 ```powershell
-node "C:\Users\user\Documents\Codex\2026-07-05\boox-leaf2-pc-codex-claude-code\scripts\claude-statusline.js"
+powershell -ExecutionPolicy Bypass -File .\scripts\install-claude-statusline.ps1
 ```
 
-### Codex snapshot
+如果 Claude Code 顯示 `settings.json` 無效：
 
 ```powershell
-python scripts\codex-usage-snapshot.py
+node .\scripts\repair-claude-settings.js --write
 ```
 
-server 在 `/api/status` 被呼叫時也會嘗試更新 Codex snapshot。
+修復工具會先建立時間戳備份。重新啟動 Claude Code 並送出一則訊息後，statusline 才會收到新快照；在此之前儀表板仍會顯示本機估算。
 
-## 6. 目前限制與風險
+## 這次踩到的坑
 
-- `data/*.json` 是本機狀態檔，不會 commit；這是刻意設計，避免把個人 usage 狀態推上 GitHub。
-- server 會讀取本機 `.claude` 與 `.codex` 相關紀錄；這只適合跑在自己的 PC。
-- Claude 若沒有 statusline rate limit 欄位，目前只能估 token，不等於官方 quota。
-- Codex 目前是從本機 logs 估算，不是官方剩餘額度。
-- Leaf2 內建瀏覽器 UI 會吃掉上方高度；若要更像專用顯示器，需要再處理全螢幕或 kiosk。
+### BOOX 實機版面不同於桌面模擬
 
-## 7. 下一個最合理的工作順序
+BOOX 瀏覽器會把工具列算進 `100vh`，造成 Claude 卡片在實機底部被截斷。版面現在以 `window.innerHeight` 同步 CSS 高度。後續任何版面修改都要擷取 Leaf2 實機截圖驗證，不能只看桌面瀏覽器。
 
-1. 先把 Claude Code statusline 的真實 rate limit 欄位接穩。
-2. 再把 usage card 改成「百分比優先」的顯示。
-3. 加入 user config：Claude 5h budget、城市、刷新頻率。
-4. 做 Windows 自動啟動與 ADB reverse 自動化。
-5. 最後再考慮 Codex 官方 usage 來源，若沒有官方 API，就清楚標示 local estimate。
+### Emoji 不是可靠的 E Ink 圖示
+
+天氣 emoji 在 Windows 正常，在 Leaf2 可能完全不顯示。除非把圖示做成自帶資產並驗證，否則使用大型中文天氣文字較可靠。
+
+### Windows 路徑會經過不同 shell
+
+Claude Code 的 statusline 在 Windows 上可能透過 Git Bash 執行。JSON 中的反斜線可能被當成跳脫字元，甚至讓 `settings.json` 無法解析，因此安裝器寫入正斜線路徑。
+
+### 工具已安裝不代表目前 PowerShell 找得到
+
+新安裝的 `gh`、`adb` 或其他 CLI 可能尚未進入目前行程的 `PATH`。先開新的 PowerShell，再用 `Get-Command <name>` 確認；必要時使用完整路徑。WindowsApps 內的封裝程式也不一定能直接執行。
+
+### USB reverse 與瀏覽器快取都不是永久狀態
+
+Leaf2 突然連不到頁面時，先查 `adb devices` 是否為 `device`，再重做 reverse。頁面仍是舊版時先重新載入，必要時暫時加上 `?v=N` 排除快取。
+
+### 用量資料必須標示可信度
+
+Codex 與 Claude Code 的官方百分比來自 rate-limit metadata；從 JSONL 計算出的 token 只能稱為估算。不要用顏色方塊或圖示暗示狀態，應直接寫「官方」或「估算」。
+
+## 給自己的提醒
+
+- 七吋螢幕上看不清楚的資訊，就不值得留在主畫面。
+- 先看「用了多少、剩多少、何時重置」，再考慮加入其他數據。
+- 不要用精密的外觀包裝不精確的資料。
+- 畫面是為了減少查看瀏覽器與指令的負擔，不是增加另一個需要研究的介面。
+
+## 給後續協作者的提醒
+
+- 修改前先確認資料來源是官方值還是估算值，並維持顯示契約。
+- 修改後至少執行語法檢查、`npm test`，並用實際 Leaf2 截圖確認上下邊界、字級與對齊。
+- 不要只以桌面版「看起來正常」作為完成標準。
+- 優先刪減資訊；只有在能幫助下一個決定時才新增欄位。
+
+## 待辦
+
+- 等 Claude Code statusline 提供 `rate_limits` 後，確認官方五小時百分比、剩餘額度與 reset 時間能完整顯示。
+- 評估是否需要開機自動啟動 server 與自動重建 ADB reverse。
+- 若未來要加入新的提醒資訊，維持單行、遠距可讀，且不可壓縮兩張 usage 卡片。

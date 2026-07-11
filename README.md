@@ -2,6 +2,15 @@
 
 Local high-contrast dashboard for a BOOX Leaf2 or any E Ink browser.
 
+> 簡約是細膩的極致
+>
+> Simplicity is the ultimate sophistication.
+
+This is a glance display, not an analytics console. Keep only information that
+can change an immediate decision: current time and weather, usage, remaining
+quota, and reset time. If a value needs explanation before it is useful, remove
+it or give it a clearer label.
+
 ## Run
 
 ```powershell
@@ -38,8 +47,11 @@ Claude Code can feed real subscription usage into the dashboard through its
 status line data. Configure Claude Code to run:
 
 ```powershell
-node C:\Users\user\Documents\Codex\2026-07-05\boox-leaf2-pc-codex-claude-code\scripts\claude-statusline.js
+node "C:/Users/user/Documents/Codex/2026-07-05/boox-leaf2-pc-codex-claude-code/scripts/claude-statusline.js"
 ```
+
+Use forward slashes in the configured command on Windows. Claude Code may run
+the command through Git Bash, where unquoted backslashes can be consumed.
 
 The script writes `data/claude-status.json`, which the dashboard reads. It also
 writes an AIBar-compatible snapshot under `~/.ai-usage/claude-status/`, so other
@@ -57,9 +69,22 @@ On Windows, you can install the statusline command automatically:
 powershell -ExecutionPolicy Bypass -File .\scripts\install-claude-statusline.ps1
 ```
 
+If Claude reports that `settings.json` is malformed, repair invalid JSON escape
+sequences without removing existing settings:
+
+```powershell
+node .\scripts\repair-claude-settings.js --write
+```
+
+The repair command creates a timestamped backup beside `settings.json` before
+writing a normalized, strictly valid JSON file.
+
 Then restart Claude Code and send one message. Claude Code only emits
 `rate_limits` after a response, so the dashboard will keep showing the local
 token estimate until that first statusline snapshot is captured.
+
+Run the installer again after pulling an updated repository so an older
+backslash-based command is replaced.
 
 When statusline data is not available, the dashboard falls back to local Claude
 Code JSONL history under `~/.claude/projects` and shows a 5-hour token total
@@ -97,3 +122,27 @@ You can still create `data/codex-status.json` manually for testing:
 The Codex session-log and Claude statusline snapshot strategy was informed by
 [neo-wabow/AIBar](https://github.com/neo-wabow/AIBar), adapted here for a
 Windows + BOOX Leaf2 browser dashboard instead of a macOS menu bar app.
+
+## BOOX and Windows notes
+
+- Verify layout on the physical Leaf2. A desktop portrait viewport is useful,
+  but it does not reproduce BOOX browser chrome, font metrics, or E Ink refresh.
+- The BOOX browser can calculate `100vh` as the full screen, including browser
+  chrome. The dashboard therefore synchronizes its height from
+  `window.innerHeight` so the Claude card is not clipped below the fold.
+- Color emoji can render on Windows but disappear on BOOX. Weather uses large
+  Chinese text instead of depending on an emoji font.
+- `adb reverse` is temporary. Run `adb devices` and then
+  `adb reverse tcp:8765 tcp:8765` again after reconnecting USB or restarting ADB.
+- BOOX may retain old CSS and JavaScript. Reload the page; if necessary, append
+  a temporary query string such as `/?v=2`.
+- Claude Code may execute a Windows statusline command through Git Bash. Keep
+  forward slashes in the JSON command path and use the repair script if an
+  escaped backslash makes `settings.json` invalid.
+- An official percentage and a local token estimate are different data
+  qualities. The interface labels estimates explicitly and never represents
+  confidence with an unexplained icon or square.
+
+For future changes: read the dashboard from arm's length, capture an actual
+Leaf2 screenshot over ADB, and remove any element that competes with the usage
+percentage or reset time without helping the next decision.

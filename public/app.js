@@ -1,29 +1,39 @@
-const weatherCodes = new Map([
-  [0, "Clear"],
-  [1, "Mainly clear"],
-  [2, "Partly cloudy"],
-  [3, "Cloudy"],
-  [45, "Fog"],
-  [48, "Fog"],
-  [51, "Light drizzle"],
-  [53, "Drizzle"],
-  [55, "Heavy drizzle"],
-  [61, "Light rain"],
-  [63, "Rain"],
-  [65, "Heavy rain"],
-  [71, "Light snow"],
-  [73, "Snow"],
-  [75, "Heavy snow"],
-  [80, "Rain showers"],
-  [81, "Rain showers"],
-  [82, "Heavy showers"],
-  [95, "Thunderstorm"]
+const weatherLabels = new Map([
+  [0, "晴"],
+  [1, "晴朗"],
+  [2, "多雲"],
+  [3, "陰"],
+  [45, "霧"],
+  [48, "霧"],
+  [51, "細雨"],
+  [53, "細雨"],
+  [55, "細雨"],
+  [61, "小雨"],
+  [63, "雨"],
+  [65, "大雨"],
+  [71, "小雪"],
+  [73, "雪"],
+  [75, "大雪"],
+  [80, "陣雨"],
+  [81, "陣雨"],
+  [82, "大雨"],
+  [95, "雷雨"]
 ]);
+
+function syncViewportHeight() {
+  document.documentElement.style.setProperty("--viewport-height", `${window.innerHeight}px`);
+}
+
+const rotatingQuotes = [
+  { text: "簡約是細膩的極致", language: "zh" },
+  { text: "Simplicity is the ultimate sophistication.", language: "en" }
+];
 
 let refreshSeconds = 180;
 
 function text(id, value) {
-  document.getElementById(id).textContent = value;
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
 }
 
 function formatDate(now) {
@@ -45,17 +55,17 @@ function updateClock() {
       hour12: false
     }).format(now)
   );
-  text(
-    "secondLine",
-    new Intl.DateTimeFormat("zh-TW", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
-    }).format(now)
-  );
+  updateQuote(now);
+}
+
+function updateQuote(now) {
+  const quote = document.getElementById("quoteText");
+  if (!quote) return;
+  const index = Math.floor(now.getTime() / (5 * 60 * 1000)) % rotatingQuotes.length;
+  const selected = rotatingQuotes[index];
+  quote.textContent = selected.text;
+  quote.className = `quote-panel quote-${selected.language}`;
+  quote.lang = selected.language === "zh" ? "zh-Hant" : "en";
 }
 
 async function fetchJson(url) {
@@ -64,30 +74,54 @@ async function fetchJson(url) {
   return response.json();
 }
 
-function setDot(id, state) {
-  const dot = document.getElementById(id);
-  dot.className = `state-dot ${state === "ready" ? "ready" : "warn"}`;
-}
-
 function updateToolCard(prefix, tool) {
   const display = tool.display || {};
+  const stats = display.stats || [];
+  const reset = stats.find((item) => String(item.label || "").toLowerCase() === "reset");
   text(`${prefix}Value`, display.value || tool.line || "--");
-  text(`${prefix}Caption`, display.caption || "");
-  text(`${prefix}Note`, tool.detail || "");
-  updateStats(prefix, display.stats || []);
+  text(`${prefix}Caption`, localizeCaption(display.caption || "", tool.quality));
+  text(`${prefix}Reset`, formatResetValue(reset?.value));
+  updateStats(prefix, stats.filter((item) => item !== reset));
   updateMeter(prefix, tool.meter);
-  setDot(`${prefix}Dot`, tool.state);
+}
+
+function formatResetValue(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized || /unknown/i.test(normalized)) return "--";
+  return normalized.replace(/^resets\s+/i, "");
+}
+
+function localizeCaption(caption, quality) {
+  const normalized = caption.trim().toLowerCase();
+  if (normalized === "5h used" && quality === "official") return "5 小時已用 · 官方";
+  if (normalized === "5h used") return "5 小時已用";
+  if (normalized === "5h used est.") return "5 小時估算";
+  if (normalized === "7d used") return "7 天已用";
+  return caption;
+}
+
+function localizeStatLabel(label) {
+  return {
+    left: "剩餘",
+    reset: "重置",
+    used: "已用",
+    "7d": "7 天"
+  }[String(label || "").toLowerCase()] || label || "";
 }
 
 function updateStats(prefix, stats) {
   const container = document.getElementById(`${prefix}Stats`);
   if (!container) return;
   container.textContent = "";
-  for (const item of stats.slice(0, 3)) {
+  const visibleStats = stats
+    .filter((item) => item.value != null && String(item.value).trim() !== "" && String(item.value).trim() !== "--")
+    .slice(0, 3);
+  container.style.gridTemplateColumns = `repeat(${Math.max(1, visibleStats.length)}, minmax(0, 1fr))`;
+  for (const item of visibleStats) {
     const stat = document.createElement("div");
     const label = document.createElement("span");
     const value = document.createElement("strong");
-    label.textContent = item.label || "";
+    label.textContent = localizeStatLabel(item.label);
     value.textContent = item.value || "";
     stat.append(label, value);
     container.appendChild(stat);
@@ -133,25 +167,20 @@ async function refreshWeather() {
   try {
     const data = await fetchJson("/api/weather");
     const current = data.current || {};
-    const daily = data.daily || {};
-    const max = daily.temperature_2m_max && daily.temperature_2m_max[0];
-    const min = daily.temperature_2m_min && daily.temperature_2m_min[0];
-    const pop = daily.precipitation_probability_max && daily.precipitation_probability_max[0];
-    text("weatherPlace", data.label || "--");
     if (data.offline) {
       text("temperature", "--");
-      text("weatherText", "Weather offline");
-      text("weatherRange", "No cache");
-      text("weatherWind", "PC network");
+      text("weatherIcon", "?");
+      text("weatherDescription", "Weather unavailable");
       return;
     }
-    text("temperature", Number.isFinite(current.temperature_2m) ? `${Math.round(current.temperature_2m)}°` : "--");
-    text("weatherText", data.stale ? "Cached weather" : weatherCodes.get(current.weather_code) || "Weather");
-    text("weatherRange", Number.isFinite(max) && Number.isFinite(min) ? `${Math.round(min)}-${Math.round(max)}°C` : "--");
-    text("weatherWind", Number.isFinite(current.wind_speed_10m) ? `${Math.round(current.wind_speed_10m)} km/h` : `Rain ${pop || 0}%`);
+    const description = weatherLabels.get(current.weather_code) || "天氣";
+    text("temperature", Number.isFinite(current.temperature_2m) ? `${Math.round(current.temperature_2m)}\u00B0` : "--");
+    text("weatherIcon", description);
+    text("weatherDescription", description);
   } catch (error) {
-    text("weatherText", "Weather unavailable");
-    text("weatherRange", error.message);
+    text("temperature", "--");
+    text("weatherIcon", "?");
+    text("weatherDescription", "Weather unavailable");
   }
 }
 
@@ -161,6 +190,9 @@ function scheduleRefresh() {
   window.setTimeout(scheduleRefresh, refreshSeconds * 1000);
 }
 
+syncViewportHeight();
+window.addEventListener("resize", syncViewportHeight);
+window.addEventListener("orientationchange", syncViewportHeight);
 updateClock();
 window.setInterval(updateClock, 1000);
 scheduleRefresh();

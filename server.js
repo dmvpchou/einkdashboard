@@ -185,23 +185,46 @@ async function getToolStatus() {
         ? "CLI found; auth cache not visible"
         : "No local auth cache found";
 
+  const claudeState = claudeUsage?.quality === "official"
+    ? "ready"
+    : claudeUsage
+      ? "estimated"
+      : claudeAuth.ok
+        ? "waiting"
+        : "unknown";
+  const codexState = codexUsage?.quality === "official"
+    ? "ready"
+    : codexUsage
+      ? "estimated"
+      : codexVersion.ok || codexInstalled || codexHasAuth
+        ? "waiting"
+        : "unknown";
+
   return {
     claude: {
       label: "Claude Code",
-      state: claudeUsage ? "ready" : claudeAuth.ok ? "ready" : "unknown",
+      state: claudeState,
       line: claudeUsage?.line || (claudeAuth.ok ? "Claude Ready" : "Usage pending"),
       detail: claudeUsage?.detail || (claudeAuth.ok
         ? claudeAuth.stdout.split(/\r?\n/)[0] || "Signed in"
         : "Enable statusline bridge"),
-      meter: claudeUsage?.meter || null
+      ...usagePresentation(claudeUsage)
     },
     codex: {
       label: "Codex",
-      state: codexUsage || codexVersion.ok || codexInstalled || codexHasAuth ? "ready" : "unknown",
+      state: codexState,
       line: codexUsage?.line || codexLine,
       detail: codexUsage?.detail || codexDetail,
-      meter: codexUsage?.meter || null
+      ...usagePresentation(codexUsage)
     }
+  };
+}
+
+function usagePresentation(usage) {
+  return {
+    meter: usage?.meter || null,
+    display: usage?.display || null,
+    quality: usage?.quality || "unavailable"
   };
 }
 
@@ -230,6 +253,7 @@ function summarizeGenericUsage(status) {
     line,
     detail: status.detail || status.source || "manual usage snapshot",
     meter,
+    quality: status.rateLimits?.primary?.usedPercent != null ? "official" : "estimated",
     display: status.display || {
       value: line.replace(/^5h\s+/i, "").replace(/^7d\s+/i, ""),
       caption: meter?.label ? `${meter.label} estimate` : "usage",
@@ -317,6 +341,7 @@ function summarizeClaudeUsage(status) {
   return {
     line: `${label} ${percent}% used`,
     detail: [`${leftPercent}% left`, reset, weekText, status.model].filter(Boolean).join(" - "),
+    quality: "official",
     meter: {
       value: percent,
       label
@@ -388,6 +413,7 @@ function summarizeClaudeLocalHistory() {
     detail: hasBudget
       ? `${formatTokens(remaining)} left - ${formatTokens(fiveHour.total)} used - ${resetText} - est.`
       : `${formatTokens(fiveHour.total)} used - ${resetText} - est.`,
+    quality: "estimated",
     meter: hasBudget
       ? {
           value: Math.round(usedPercent),
@@ -567,10 +593,19 @@ const server = http.createServer(async (req, res) => {
   sendFile(res, filePath);
 });
 
-server.listen(config.port, "0.0.0.0", () => {
-  const addresses = getLanAddresses();
-  console.log(`Leaf2 board: http://localhost:${config.port}`);
-  for (const address of addresses) {
-    console.log(`LAN: http://${address}:${config.port}`);
-  }
-});
+if (require.main === module) {
+  server.listen(config.port, "0.0.0.0", () => {
+    const addresses = getLanAddresses();
+    console.log(`Leaf2 board: http://localhost:${config.port}`);
+    for (const address of addresses) {
+      console.log(`LAN: http://${address}:${config.port}`);
+    }
+  });
+}
+
+module.exports = {
+  normalizeClaudeStatus,
+  summarizeClaudeUsage,
+  summarizeGenericUsage,
+  usagePresentation
+};
