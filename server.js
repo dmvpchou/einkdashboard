@@ -8,6 +8,12 @@ const { execFile } = require("child_process");
 const root = __dirname;
 const publicDir = path.join(root, "public");
 const dataDir = path.join(root, "data");
+const claudeCredentialsPath = path.join(os.homedir(), ".claude", ".credentials.json");
+const claudeUsageUrl = "https://api.anthropic.com/api/oauth/usage";
+const claudeUsageCache = { data: null, fetchedAt: 0 };
+const codexAuthPath = path.join(os.homedir(), ".codex", "auth.json");
+const codexUsageUrl = "https://chatgpt.com/backend-api/wham/usage";
+const codexUsageCache = { data: null, fetchedAt: 0 };
 
 const defaultConfig = {
   port: 8765,
@@ -87,10 +93,10 @@ function sendFile(res, filePath) {
   });
 }
 
-function httpsJson(url) {
+function httpsJson(url, options = {}) {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { headers: { "user-agent": "leaf2-usage-board" } }, (response) => {
+      .get(url, { headers: { "user-agent": "leaf2-usage-board", ...(options.headers || {}) } }, (response) => {
         let data = "";
         response.setEncoding("utf8");
         response.on("data", (chunk) => {
@@ -110,7 +116,7 @@ function httpsJson(url) {
       })
       .on("error", reject)
       .setTimeout(8000, function onTimeout() {
-        this.destroy(new Error("Weather request timed out"));
+        this.destroy(new Error("HTTPS request timed out"));
       });
   });
 }
@@ -153,21 +159,25 @@ function getLanAddresses() {
 }
 
 async function getToolStatus() {
-  const [claudeAuth, codexVersion] = await Promise.all([
+  const [claudeAuth, codexVersion, claudeOfficialStatus, codexOfficialStatus] = await Promise.all([
     runCommand("claude", ["auth", "status", "--text"]),
-    runCommand("codex", ["--version"])
+    runCommand("codex", ["--version"]),
+    fetchClaudeOfficialUsage(),
+    fetchCodexOfficialUsage()
   ]);
 
   await refreshCodexUsageSnapshot();
 
   const claudeStatus = readClaudeStatusSnapshot();
-  const claudeUsage = claudeStatus
-    ? summarizeClaudeUsage(claudeStatus.data)
-    : summarizeClaudeLocalHistory();
+  const claudeUsage = summarizeClaudeUsage(claudeOfficialStatus)
+    || (claudeStatus ? summarizeClaudeUsage(claudeStatus.data) : null)
+    || summarizeClaudeLocalHistory();
   const codexStatus = readJsonIfFresh(path.join(dataDir, "codex-status.json"), 6 * 60 * 60 * 1000);
-  const codexUsage = codexStatus ? summarizeGenericUsage(codexStatus.data) : null;
+  const codexUsage = withCodexResetCredits(
+    codexStatus ? summarizeGenericUsage(codexStatus.data) : null,
+    codexOfficialStatus
+  );
 
-  const codexAuthPath = path.join(os.homedir(), ".codex", "auth.json");
   const codexHasAuth = fs.existsSync(codexAuthPath);
   const codexInstalled = findExecutableOnPath("codex") || findExecutableOnPath("codex.exe");
   const codexLine = codexVersion.ok
@@ -217,6 +227,103 @@ async function getToolStatus() {
       detail: codexUsage?.detail || codexDetail,
       ...usagePresentation(codexUsage)
     }
+  };
+}
+
+async function fetchCodexOfficialUsage() {
+  const now = Date.now();
+  if (codexUsageCache.data && now - codexUsageCache.fetchedAt < 60 * 1000) {
+    return codexUsageCache.data;
+  }
+
+  try {
+    const auth = JSON.parse(fs.readFileSync(codexAuthPath, "utf8"));
+    const accessToken = auth.tokens?.access_token;
+    const accountId = auth.tokens?.account_id;
+    if (!accessToken) return null;
+
+    const headers = {
+      accept: "application/json",
+      authorization: `Bearer ${accessToken}`
+    };
+    if (accountId) headers["chatgpt-account-id"] = accountId;
+    const response = await httpsJson(codexUsageUrl, { headers });
+    codexUsageCache.data = response;
+    codexUsageCache.fetchedAt = now;
+    return response;
+  } catch {
+    return now - codexUsageCache.fetchedAt < 10 * 60 * 1000
+      ? codexUsageCache.data
+      : null;
+  }
+}
+
+function codexResetCreditCount(status) {
+  const value = status?.rate_limit_reset_credits?.available_count;
+  const count = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+  return Number.isInteger(count) && count >= 0 ? count : null;
+}
+
+function withCodexResetCredits(usage, status) {
+  const count = codexResetCreditCount(status);
+  if (!usage || !usage.display || !count) return usage;
+  return {
+    ...usage,
+    display: {
+      ...usage.display,
+      stats: [
+        ...(usage.display.stats || []).filter((item) => item.label !== "resets"),
+        { label: "resets", value: String(count) }
+      ]
+    }
+  };
+}
+
+async function fetchClaudeOfficialUsage() {
+  const now = Date.now();
+  if (claudeUsageCache.data && now - claudeUsageCache.fetchedAt < 60 * 1000) {
+    return claudeUsageCache.data;
+  }
+
+  try {
+    const credentials = JSON.parse(fs.readFileSync(claudeCredentialsPath, "utf8"));
+    const oauth = credentials.claudeAiOauth;
+    if (!oauth?.accessToken || Number(oauth.expiresAt) <= now) return null;
+
+    const response = await httpsJson(claudeUsageUrl, {
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${oauth.accessToken}`,
+        "anthropic-beta": "oauth-2025-04-20"
+      }
+    });
+    const normalized = normalizeClaudeApiUsage(response);
+    if (!normalized) return null;
+    claudeUsageCache.data = normalized;
+    claudeUsageCache.fetchedAt = now;
+    return normalized;
+  } catch {
+    return now - claudeUsageCache.fetchedAt < 10 * 60 * 1000
+      ? claudeUsageCache.data
+      : null;
+  }
+}
+
+function normalizeClaudeApiUsage(status) {
+  if (!status || typeof status !== "object") return null;
+  const fiveHour = normalizeClaudeApiWindow(status.five_hour);
+  const sevenDay = normalizeClaudeApiWindow(status.seven_day);
+  if (!fiveHour && !sevenDay) return null;
+  return { rateLimits: { fiveHour, sevenDay } };
+}
+
+function normalizeClaudeApiWindow(window) {
+  if (!window) return null;
+  const usedPercentage = Number(window.utilization);
+  const resetsAtMs = Date.parse(window.resets_at);
+  return {
+    usedPercentage: Number.isFinite(usedPercentage) ? usedPercentage : null,
+    resetsAt: Number.isFinite(resetsAtMs) ? Math.floor(resetsAtMs / 1000) : null
   };
 }
 
@@ -328,6 +435,7 @@ function normalizeClaudeWindow(window) {
 }
 
 function summarizeClaudeUsage(status) {
+  if (!status || typeof status !== "object") return null;
   const fiveHour = status.rateLimits?.fiveHour;
   const sevenDay = status.rateLimits?.sevenDay;
   const preferred = fiveHour?.usedPercentage != null ? fiveHour : sevenDay;
@@ -604,8 +712,13 @@ if (require.main === module) {
 }
 
 module.exports = {
+  codexResetCreditCount,
+  fetchCodexOfficialUsage,
+  fetchClaudeOfficialUsage,
+  normalizeClaudeApiUsage,
   normalizeClaudeStatus,
   summarizeClaudeUsage,
   summarizeGenericUsage,
-  usagePresentation
+  usagePresentation,
+  withCodexResetCredits
 };

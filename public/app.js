@@ -104,6 +104,7 @@ function localizeStatLabel(label) {
   return {
     left: "剩餘",
     reset: "重置",
+    resets: "可用重置",
     used: "已用",
     "7d": "7 天"
   }[String(label || "").toLowerCase()] || label || "";
