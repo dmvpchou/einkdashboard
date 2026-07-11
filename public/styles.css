@@ -79,10 +79,10 @@ body {
   background: var(--soft);
   padding: 14px 18px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 18px;
 }
 
 .section-label {
@@ -117,7 +117,7 @@ body {
 }
 
 .quote-panel {
-  min-height: 68px;
+  min-height: 72px;
   border: 2px solid var(--line);
   background: var(--card);
   padding: 0 16px;
@@ -125,14 +125,14 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 2rem;
+  font-size: 2.35rem;
   font-weight: 780;
   line-height: 1.2;
   white-space: nowrap;
 }
 
 .quote-en {
-  font-size: 1.7rem;
+  font-size: 1.9rem;
 }
 
 .usage-grid {
@@ -192,7 +192,7 @@ body {
 
 .usage-reset strong {
   margin-top: 3px;
-  font-size: 1.8rem;
+  font-size: 2.15rem;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -292,6 +292,7 @@ body {
 
   .weather-panel {
     padding: 16px 20px;
+    gap: 20px;
   }
 
   .temperature {
@@ -303,12 +304,16 @@ body {
   }
 
   .quote-panel {
-    min-height: 66px;
-    font-size: 2rem;
+    min-height: 72px;
+    font-size: 2.5rem;
   }
 
   .quote-en {
-    font-size: 1.7rem;
+    font-size: 2rem;
+  }
+
+  .usage-reset strong {
+    font-size: 2.35rem;
   }
 
   .usage-card {
@@ -347,7 +352,7 @@ body {
 
   .weather-panel {
     padding: 10px 12px;
-    gap: 6px;
+    gap: 12px;
   }
 
   .temperature {
@@ -359,14 +364,14 @@ body {
   }
 
   .quote-panel {
-    min-height: 66px;
+    min-height: 70px;
     padding: 0 12px;
-    font-size: 2rem;
+    font-size: 2.25rem;
     font-weight: 780;
   }
 
   .quote-en {
-    font-size: 1.7rem;
+    font-size: 1.8rem;
   }
 
   .usage-card {
