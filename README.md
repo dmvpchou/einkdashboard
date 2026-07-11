@@ -17,6 +17,13 @@ it or give it a clearer label.
 npm start
 ```
 
+If the local `npm` shim is unavailable or points to a removed installation,
+start the same server directly:
+
+```powershell
+node server.js
+```
+
 Open the LAN URL printed by the server on the Leaf2 browser.
 
 ## Configure
@@ -43,11 +50,20 @@ Weather is fetched from Open-Meteo without an API key.
 
 ## Claude Code usage
 
-Claude Code can feed real subscription usage into the dashboard through its
+The server first reads the local Claude Code OAuth credential and requests the
+same official 5-hour and 7-day utilization data used by Claude's usage view.
+The credential stays on the PC and is never returned by the dashboard API or
+written to logs. The result is cached briefly; if the request is unavailable,
+the dashboard falls back to statusline data and then local token history.
+
+The OAuth usage endpoint is used by Claude Code clients but is not currently
+documented as a public Anthropic API, so the fallback remains important.
+
+Claude Code can also feed subscription usage into the dashboard through its
 status line data. Configure Claude Code to run:
 
 ```powershell
-node "C:/Users/user/Documents/Codex/2026-07-05/boox-leaf2-pc-codex-claude-code/scripts/claude-statusline.js"
+node "C:/repos/einkdashboard/scripts/claude-statusline.js"
 ```
 
 Use forward slashes in the configured command on Windows. Claude Code may run
@@ -102,6 +118,13 @@ dashboard shows official local usage percentages and reset times. If session
 rate-limit metadata is unavailable, it falls back to `%USERPROFILE%\.codex\logs_2.sqlite`
 and shows a token-based estimate.
 
+The server also checks the official Codex usage status for banked referral
+resets. When `rate_limit_reset_credits.available_count` is greater than zero,
+the Codex card adds a small `可用重置` value. Zero, missing, or unavailable
+values remain hidden so this optional reward does not add noise. The dashboard
+never consumes a reset. Banked resets are promotional rewards and are separate
+from purchased usage credits and the normal 5-hour reset time.
+
 You can still create `data/codex-status.json` manually for testing:
 
 ```json
@@ -146,3 +169,19 @@ Windows + BOOX Leaf2 browser dashboard instead of a macOS menu bar app.
 For future changes: read the dashboard from arm's length, capture an actual
 Leaf2 screenshot over ADB, and remove any element that competes with the usage
 percentage or reset time without helping the next decision.
+
+## Development
+
+Run the current verification suite with:
+
+```powershell
+node --check server.js
+node --check public/app.js
+node --test
+git diff --check
+```
+
+Commit work follows [maylogger/lazy-commit](https://github.com/maylogger/lazy-commit).
+The repository-level rules are recorded in `AGENTS.md`: group by intent, use
+atomic commits and Conventional Commits, and write commit descriptions in
+Traditional Chinese.
