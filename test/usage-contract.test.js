@@ -2,6 +2,8 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+  classifyClaudeRecords,
+  classifyCodexRecords,
   codexResetCreditCount,
   normalizeClaudeApiUsage,
   summarizeClaudeUsage,
@@ -9,6 +11,42 @@ const {
   usagePresentation,
   withCodexResetCredits
 } = require("../server");
+
+test("Codex completed and blocking turns become glanceable notices", () => {
+  const base = [
+    { type: "session_meta", payload: { cwd: "C:\\repos\\einkdashboard" } },
+    { type: "event_msg", payload: { type: "task_started" } }
+  ];
+  const completed = classifyCodexRecords([
+    ...base,
+    { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "完成了" }] } },
+    { type: "event_msg", payload: { type: "task_complete" } }
+  ]);
+  const waiting = classifyCodexRecords([
+    ...base,
+    { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: "請確認要繼續嗎？" }] } },
+    { type: "event_msg", payload: { type: "task_complete" } }
+  ]);
+
+  assert.deepEqual(completed, { state: "complete", tool: "Codex", project: "einkdashboard" });
+  assert.equal(waiting.state, "input");
+});
+
+test("Claude end turns and stale tool turns map to notice states", () => {
+  const complete = classifyClaudeRecords([{
+    type: "assistant",
+    cwd: "C:\\repos\\cascara",
+    message: { role: "assistant", stop_reason: "end_turn", content: [{ type: "text", text: "Done" }] }
+  }], { ageMs: 1000 });
+  const interrupted = classifyClaudeRecords([{
+    type: "assistant",
+    cwd: "C:\\repos\\cascara",
+    message: { role: "assistant", stop_reason: "tool_use", content: [] }
+  }], { ageMs: 11 * 60 * 1000 });
+
+  assert.equal(complete.state, "complete");
+  assert.equal(interrupted.state, "interrupted");
+});
 
 test("Codex banked resets appear only when an official reset is available", () => {
   const usage = {

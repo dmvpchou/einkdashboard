@@ -14,6 +14,8 @@ const claudeUsageCache = { data: null, fetchedAt: 0 };
 const codexAuthPath = path.join(os.homedir(), ".codex", "auth.json");
 const codexUsageUrl = "https://chatgpt.com/backend-api/wham/usage";
 const codexUsageCache = { data: null, fetchedAt: 0 };
+const conversationNoticeCache = { data: [], fetchedAt: 0 };
+const conversationNoticeMaxAgeMs = 12 * 60 * 60 * 1000;
 
 const defaultConfig = {
   port: 8765,
@@ -228,6 +230,163 @@ async function getToolStatus() {
       ...usagePresentation(codexUsage)
     }
   };
+}
+
+function isLikelyQuestion(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  return /[?？]\s*$/.test(text)
+    || /(?:請(?:選擇|告訴|提供|確認|回覆)|需要你|是否要|要不要|would you|please (?:choose|tell|provide|confirm))/i.test(text);
+}
+
+function messageText(message) {
+  const content = message?.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((item) => item && (item.type === "text" || item.type === "output_text" || item.type === "input_text"))
+    .map((item) => item.text || "")
+    .join("\n");
+}
+
+function projectLabel(cwd, fallback) {
+  const normalized = String(cwd || "").replace(/[\\/]+$/, "");
+  return normalized ? path.basename(normalized) : fallback;
+}
+
+function classifyCodexRecords(records, metadata = {}) {
+  let state = "idle";
+  let lastAssistantText = "";
+  let pendingInteractiveCall = false;
+  let cwd = metadata.cwd || "";
+
+  for (const record of records) {
+    if (record.type === "session_meta") cwd = record.payload?.cwd || cwd;
+    if (record.type === "turn_context") cwd = record.payload?.cwd || cwd;
+    if (record.type === "event_msg" && record.payload?.type === "task_started") {
+      state = "running";
+      lastAssistantText = "";
+      pendingInteractiveCall = false;
+    }
+    if (record.type === "response_item" && record.payload?.type === "message" && record.payload?.role === "assistant") {
+      lastAssistantText = messageText(record.payload);
+    }
+    if (record.type === "response_item" && /(?:function_call|custom_tool_call)$/.test(record.payload?.type || "")) {
+      const name = String(record.payload?.name || "");
+      pendingInteractiveCall = /request_user_input|ask_user|request_permission/i.test(name);
+    }
+    if (record.type === "response_item" && /(?:function_call_output|custom_tool_call_output)$/.test(record.payload?.type || "")) {
+      pendingInteractiveCall = false;
+    }
+    if (record.type === "event_msg" && record.payload?.type === "turn_aborted") state = "interrupted";
+    if (record.type === "event_msg" && record.payload?.type === "task_complete") {
+      state = isLikelyQuestion(lastAssistantText) ? "input" : "complete";
+    }
+  }
+
+  if (state === "running" && pendingInteractiveCall) state = "input";
+  if (!["input", "complete", "interrupted"].includes(state)) return null;
+  return { state, tool: "Codex", project: projectLabel(cwd, "Codex task") };
+}
+
+function classifyClaudeRecords(records, metadata = {}) {
+  let lastAssistant = null;
+  let cwd = metadata.cwd || "";
+  for (const record of records) {
+    cwd = record.cwd || cwd;
+    if (record.type === "assistant" && record.message?.role === "assistant") lastAssistant = record;
+  }
+  if (!lastAssistant) return null;
+
+  const stopReason = lastAssistant.message?.stop_reason;
+  const text = messageText(lastAssistant.message);
+  let state = null;
+  if (stopReason === "end_turn") state = isLikelyQuestion(text) ? "input" : "complete";
+  if (stopReason === "tool_use" && Number(metadata.ageMs) > 10 * 60 * 1000) state = "interrupted";
+  if (!state) return null;
+  return { state, tool: "Claude", project: projectLabel(cwd, "Claude task") };
+}
+
+function readJsonlSlice(filePath, maxBytes = 512 * 1024, fromEnd = true) {
+  try {
+    const stat = fs.statSync(filePath);
+    const size = Math.min(stat.size, maxBytes);
+    const start = fromEnd ? Math.max(0, stat.size - size) : 0;
+    const buffer = Buffer.alloc(size);
+    const descriptor = fs.openSync(filePath, "r");
+    try {
+      fs.readSync(descriptor, buffer, 0, size, start);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+    let source = buffer.toString("utf8");
+    if (fromEnd && start > 0) source = source.slice(source.indexOf("\n") + 1);
+    return source.split(/\r?\n/).filter(Boolean).flatMap((line) => {
+      try {
+        return [JSON.parse(line)];
+      } catch {
+        return [];
+      }
+    });
+  } catch {
+    return [];
+  }
+}
+
+function recentJsonlFiles(rootPath, now, limit = 30) {
+  const results = [];
+  const visit = (directory) => {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(fullPath);
+      if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
+      try {
+        const stat = fs.statSync(fullPath);
+        if (now - stat.mtimeMs <= conversationNoticeMaxAgeMs) {
+          results.push({ path: fullPath, modifiedAt: stat.mtimeMs });
+        }
+      } catch {
+        // Ignore sessions that disappear during the scan.
+      }
+    }
+  };
+  visit(rootPath);
+  return results.sort((a, b) => b.modifiedAt - a.modifiedAt).slice(0, limit);
+}
+
+function getConversationNotices() {
+  const now = Date.now();
+  if (now - conversationNoticeCache.fetchedAt < 30 * 1000) return conversationNoticeCache.data;
+
+  const notices = [];
+  const codexRoot = path.join(os.homedir(), ".codex", "sessions");
+  for (const file of recentJsonlFiles(codexRoot, now)) {
+    const head = readJsonlSlice(file.path, 64 * 1024, false);
+    const tail = readJsonlSlice(file.path);
+    const meta = head.find((record) => record.type === "session_meta")?.payload || {};
+    const notice = classifyCodexRecords(tail, meta);
+    if (notice) notices.push({ ...notice, updatedAt: new Date(file.modifiedAt).toISOString() });
+  }
+
+  const claudeRoot = path.join(os.homedir(), ".claude", "projects");
+  for (const file of recentJsonlFiles(claudeRoot, now)) {
+    const tail = readJsonlSlice(file.path);
+    const notice = classifyClaudeRecords(tail, { ageMs: now - file.modifiedAt });
+    if (notice) notices.push({ ...notice, updatedAt: new Date(file.modifiedAt).toISOString() });
+  }
+
+  const priority = { input: 0, interrupted: 1, complete: 2 };
+  conversationNoticeCache.data = notices
+    .sort((a, b) => priority[a.state] - priority[b.state] || Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    .slice(0, 12);
+  conversationNoticeCache.fetchedAt = now;
+  return conversationNoticeCache.data;
 }
 
 async function fetchCodexOfficialUsage() {
@@ -669,7 +828,8 @@ const server = http.createServer(async (req, res) => {
       now: new Date().toISOString(),
       refreshSeconds: config.refreshSeconds,
       addresses: getLanAddresses(),
-      tools
+      tools,
+      notices: getConversationNotices()
     });
     return;
   }
@@ -712,6 +872,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  classifyClaudeRecords,
+  classifyCodexRecords,
   codexResetCreditCount,
   fetchCodexOfficialUsage,
   fetchClaudeOfficialUsage,
