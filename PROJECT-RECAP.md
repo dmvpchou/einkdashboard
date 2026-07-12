@@ -43,6 +43,7 @@ http://127.0.0.1:8765
 ```
 
 `adb reverse` 不是永久設定；USB 重接、ADB 重啟或裝置重開後都可能需要重新執行。
+可執行一次 `npm run install:autostart` 安裝使用者層級的 Windows 登入排程；背景 watcher 會啟動 dashboard，並在 Leaf2 或 ADB 重連後自動補回 `tcp:8765` reverse。
 
 ## Claude Code statusline
 

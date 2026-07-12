@@ -157,6 +157,18 @@ Windows + BOOX Leaf2 browser dashboard instead of a macOS menu bar app.
   Chinese text instead of depending on an emoji font.
 - `adb reverse` is temporary. Run `adb devices` and then
   `adb reverse tcp:8765 tcp:8765` again after reconnecting USB or restarting ADB.
+
+To avoid repairing the connection manually after every reboot, install the
+per-user Windows startup task once:
+
+```powershell
+npm run install:autostart
+```
+
+The task starts the dashboard when needed, waits for an authorized Android
+device, and restores `tcp:8765` every time USB or ADB reconnects. After this is
+installed, do not also run `npm start`; the scheduled task owns the background
+server. Logs are written under `data/`.
 - BOOX may retain old CSS and JavaScript. Reload the page; if necessary, append
   a temporary query string such as `/?v=2`.
 - Claude Code may execute a Windows statusline command through Git Bash. Keep
