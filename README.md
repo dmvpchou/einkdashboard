@@ -206,6 +206,10 @@ during the last 12 hours. Only the tool name, project folder, state, and update
 time reach the dashboard API; prompts and responses are never returned to the
 browser.
 
-Each card shows its highest-priority notice beside the usage percentage.
+Each card shows its most recently updated notice beside the usage percentage.
 Additional items collapse into a small `+N` count so the tool association is
 immediate and the usage number remains the primary information.
+
+Actively running sessions stay hidden. Each tool card uses the most recently
+updated completed or explicitly attention-needed session as its visible project;
+older notices are represented only by the `+N` count.
