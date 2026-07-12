@@ -18,9 +18,10 @@
 - 官方百分比與本機估算在 API 和畫面上都有明確標示，未知值顯示 `--`，不假裝精確。
 - 天氣由 Open-Meteo 提供，BOOX 上用大型中文天氣文字，避免裝置缺少 emoji 字型。
 - 測試涵蓋 usage 顯示契約、官方與估算狀態，以及 Claude 設定檔修復。
-- 目前共有 10 項 Node 測試，另有 server、前端 JavaScript 語法與 `git diff --check` 驗證。
+- 目前共有 11 項 Node 測試，另有 server、前端 JavaScript 語法與 `git diff --check` 驗證。
 - Codex／Claude Code 額度卡片各自從本機 session JSONL 顯示待回覆、中斷與完成；只顯示專案、狀態與時間，每張卡只突出最高優先項，其餘合併計數。
 - 執行中的 session 不顯示；卡片專案名稱一律取該工具最近更新的完成或明確待處理 session，避免較舊中斷項目搶走注意力。
+- 若該工具最新 session 正在執行，暫時隱藏同工具的舊提醒，不拿舊專案名稱補位；最新 session 完成或明確等待輸入後才出現。
 
 ## 啟動與連線
 

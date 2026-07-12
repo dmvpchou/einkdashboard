@@ -213,3 +213,8 @@ immediate and the usage number remains the primary information.
 Actively running sessions stay hidden. Each tool card uses the most recently
 updated completed or explicitly attention-needed session as its visible project;
 older notices are represented only by the `+N` count.
+
+If a newer session for that tool is currently running, older notices are
+temporarily hidden instead of being shown as though they were the active
+project. The newest session appears only after it reaches a terminal or
+attention-needed state.
