@@ -185,3 +185,15 @@ Commit work follows [maylogger/lazy-commit](https://github.com/maylogger/lazy-co
 The repository-level rules are recorded in `AGENTS.md`: group by intent, use
 atomic commits and Conventional Commits, and write commit descriptions in
 Traditional Chinese.
+
+## Conversation notices
+
+Each usage card reads recent local Codex or Claude Code session JSONL files and
+shows its own conversations that need a reply, were interrupted, or completed
+during the last 12 hours. Only the tool name, project folder, state, and update
+time reach the dashboard API; prompts and responses are never returned to the
+browser.
+
+Each card shows its highest-priority notice beside the usage percentage.
+Additional items collapse into a small `+N` count so the tool association is
+immediate and the usage number remains the primary information.
