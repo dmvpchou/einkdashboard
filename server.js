@@ -306,12 +306,35 @@ function classifyClaudeRecords(records, metadata = {}) {
   return { state, tool: "Claude", project: projectLabel(cwd, "Claude task") };
 }
 
+function isCodexSessionRunning(records) {
+  let running = false;
+  for (const record of records) {
+    if (record.type !== "event_msg") continue;
+    if (record.payload?.type === "task_started") running = true;
+    if (record.payload?.type === "task_complete" || record.payload?.type === "turn_aborted") running = false;
+  }
+  return running;
+}
+
+function isClaudeSessionRunning(records) {
+  const lastAssistant = [...records]
+    .reverse()
+    .find((record) => record.type === "assistant" && record.message?.role === "assistant");
+  return lastAssistant?.message?.stop_reason === "tool_use";
+}
+
 function sortConversationNotices(notices) {
   const priority = { input: 0, interrupted: 1, complete: 2 };
   return [...notices].sort((a, b) => {
     const timeDifference = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
     return timeDifference || priority[a.state] - priority[b.state];
   });
+}
+
+function visibleConversationNotices(notices, runningTools) {
+  return sortConversationNotices(
+    notices.filter((notice) => !runningTools.has(notice.tool))
+  );
 }
 
 function readJsonlSlice(filePath, maxBytes = 512 * 1024, fromEnd = true) {
@@ -372,23 +395,28 @@ function getConversationNotices() {
   if (now - conversationNoticeCache.fetchedAt < 30 * 1000) return conversationNoticeCache.data;
 
   const notices = [];
+  const runningTools = new Set();
   const codexRoot = path.join(os.homedir(), ".codex", "sessions");
-  for (const file of recentJsonlFiles(codexRoot, now)) {
+  const codexFiles = recentJsonlFiles(codexRoot, now);
+  for (const [index, file] of codexFiles.entries()) {
     const head = readJsonlSlice(file.path, 64 * 1024, false);
     const tail = readJsonlSlice(file.path);
     const meta = head.find((record) => record.type === "session_meta")?.payload || {};
     const notice = classifyCodexRecords(tail, meta);
+    if (index === 0 && !notice && isCodexSessionRunning(tail)) runningTools.add("Codex");
     if (notice) notices.push({ ...notice, updatedAt: new Date(file.modifiedAt).toISOString() });
   }
 
   const claudeRoot = path.join(os.homedir(), ".claude", "projects");
-  for (const file of recentJsonlFiles(claudeRoot, now)) {
+  const claudeFiles = recentJsonlFiles(claudeRoot, now);
+  for (const [index, file] of claudeFiles.entries()) {
     const tail = readJsonlSlice(file.path);
     const notice = classifyClaudeRecords(tail, { ageMs: now - file.modifiedAt });
+    if (index === 0 && !notice && isClaudeSessionRunning(tail)) runningTools.add("Claude");
     if (notice) notices.push({ ...notice, updatedAt: new Date(file.modifiedAt).toISOString() });
   }
 
-  conversationNoticeCache.data = sortConversationNotices(notices).slice(0, 12);
+  conversationNoticeCache.data = visibleConversationNotices(notices, runningTools).slice(0, 12);
   conversationNoticeCache.fetchedAt = now;
   return conversationNoticeCache.data;
 }
@@ -883,9 +911,12 @@ module.exports = {
   fetchClaudeOfficialUsage,
   normalizeClaudeApiUsage,
   normalizeClaudeStatus,
+  isClaudeSessionRunning,
+  isCodexSessionRunning,
   sortConversationNotices,
   summarizeClaudeUsage,
   summarizeGenericUsage,
   usagePresentation,
+  visibleConversationNotices,
   withCodexResetCredits
 };
