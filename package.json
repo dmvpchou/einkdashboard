@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
+    "install:autostart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-dashboard-autostart.ps1",
     "test": "node --test"
   },
   "engines": {

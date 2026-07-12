@@ -3,4 +3,5 @@ config.json
 node_modules/
 __pycache__/
 data/*.json
+data/*.log
 !data/*.example.json
