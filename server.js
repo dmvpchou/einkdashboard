@@ -302,9 +302,16 @@ function classifyClaudeRecords(records, metadata = {}) {
   const text = messageText(lastAssistant.message);
   let state = null;
   if (stopReason === "end_turn") state = isLikelyQuestion(text) ? "input" : "complete";
-  if (stopReason === "tool_use" && Number(metadata.ageMs) > 10 * 60 * 1000) state = "interrupted";
   if (!state) return null;
   return { state, tool: "Claude", project: projectLabel(cwd, "Claude task") };
+}
+
+function sortConversationNotices(notices) {
+  const priority = { input: 0, interrupted: 1, complete: 2 };
+  return [...notices].sort((a, b) => {
+    const timeDifference = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+    return timeDifference || priority[a.state] - priority[b.state];
+  });
 }
 
 function readJsonlSlice(filePath, maxBytes = 512 * 1024, fromEnd = true) {
@@ -381,10 +388,7 @@ function getConversationNotices() {
     if (notice) notices.push({ ...notice, updatedAt: new Date(file.modifiedAt).toISOString() });
   }
 
-  const priority = { input: 0, interrupted: 1, complete: 2 };
-  conversationNoticeCache.data = notices
-    .sort((a, b) => priority[a.state] - priority[b.state] || Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    .slice(0, 12);
+  conversationNoticeCache.data = sortConversationNotices(notices).slice(0, 12);
   conversationNoticeCache.fetchedAt = now;
   return conversationNoticeCache.data;
 }
@@ -879,6 +883,7 @@ module.exports = {
   fetchClaudeOfficialUsage,
   normalizeClaudeApiUsage,
   normalizeClaudeStatus,
+  sortConversationNotices,
   summarizeClaudeUsage,
   summarizeGenericUsage,
   usagePresentation,

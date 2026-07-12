@@ -6,6 +6,7 @@ const {
   classifyCodexRecords,
   codexResetCreditCount,
   normalizeClaudeApiUsage,
+  sortConversationNotices,
   summarizeClaudeUsage,
   summarizeGenericUsage,
   usagePresentation,
@@ -30,22 +31,32 @@ test("Codex completed and blocking turns become glanceable notices", () => {
 
   assert.deepEqual(completed, { state: "complete", tool: "Codex", project: "einkdashboard" });
   assert.equal(waiting.state, "input");
+  assert.equal(classifyCodexRecords(base), null);
 });
 
-test("Claude end turns and stale tool turns map to notice states", () => {
+test("Claude end turns become notices while tool turns stay hidden", () => {
   const complete = classifyClaudeRecords([{
     type: "assistant",
     cwd: "C:\\repos\\cascara",
     message: { role: "assistant", stop_reason: "end_turn", content: [{ type: "text", text: "Done" }] }
   }], { ageMs: 1000 });
-  const interrupted = classifyClaudeRecords([{
+  const running = classifyClaudeRecords([{
     type: "assistant",
     cwd: "C:\\repos\\cascara",
     message: { role: "assistant", stop_reason: "tool_use", content: [] }
   }], { ageMs: 11 * 60 * 1000 });
 
   assert.equal(complete.state, "complete");
-  assert.equal(interrupted.state, "interrupted");
+  assert.equal(running, null);
+});
+
+test("Conversation notices prefer the most recently updated session", () => {
+  const notices = sortConversationNotices([
+    { state: "interrupted", tool: "Codex", project: "older-project", updatedAt: "2026-07-12T08:00:00.000Z" },
+    { state: "complete", tool: "Codex", project: "latest-project", updatedAt: "2026-07-12T09:00:00.000Z" }
+  ]);
+
+  assert.equal(notices[0].project, "latest-project");
 });
 
 test("Codex banked resets appear only when an official reset is available", () => {
