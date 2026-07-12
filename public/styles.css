@@ -167,14 +167,43 @@ body {
 
 .usage-main {
   align-self: center;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 240px minmax(150px, 1fr);
   align-items: flex-end;
-  justify-content: space-between;
   gap: 20px;
+}
+
+.tool-notice {
+  min-width: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.tool-notice-symbol {
+  flex: 0 0 auto;
+  font-size: 3.5rem;
+  line-height: 0.9;
+}
+
+.tool-notice-detail {
+  color: var(--muted);
+  font-size: 1.05rem;
+  font-weight: 780;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-notice-symbol.notice-complete {
+  font-size: 3rem;
 }
 
 .usage-reset {
   flex: 0 0 auto;
+  justify-self: end;
   padding-bottom: 3px;
   text-align: right;
 }
@@ -378,6 +407,15 @@ body {
     padding: 8px 12px;
   }
 
+  .usage-grid {
+    gap: 8px;
+  }
+
+  .usage-main {
+    grid-template-columns: minmax(130px, 1fr) 230px minmax(110px, 1fr);
+    gap: 12px;
+  }
+
   .usage-value {
     font-size: 3rem;
   }
@@ -412,6 +450,7 @@ body {
     white-space: normal;
     text-align: center;
   }
+
 }
 
 @media (orientation: landscape) and (min-width: 980px) {

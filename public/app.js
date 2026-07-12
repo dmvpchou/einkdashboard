@@ -143,12 +143,57 @@ function updateMeter(prefix, meter) {
   fill.style.width = `${value}%`;
 }
 
+const noticeMeta = {
+  input: { symbol: "?" },
+  interrupted: { symbol: "!" },
+  complete: { symbol: "✓" }
+};
+
+function formatNoticeTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return new Intl.DateTimeFormat("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+}
+
+function updateNotices(notices) {
+  const items = Array.isArray(notices) ? notices : [];
+  updateToolNotice("codex", items.filter((item) => item.tool === "Codex"));
+  updateToolNotice("claude", items.filter((item) => item.tool === "Claude"));
+}
+
+function updateToolNotice(prefix, items) {
+  const container = document.getElementById(`${prefix}Notice`);
+  if (!container) return;
+  container.textContent = "";
+  container.hidden = items.length === 0;
+  if (!items.length) return;
+
+  const item = items[0];
+  const meta = noticeMeta[item.state] || noticeMeta.interrupted;
+  const symbol = document.createElement("strong");
+  symbol.className = `tool-notice-symbol notice-${item.state}`;
+  symbol.textContent = meta.symbol;
+
+  const detail = document.createElement("div");
+  detail.className = "tool-notice-detail";
+  const extraCount = Math.max(0, items.length - 1);
+  detail.textContent = extraCount
+    ? `${item.project} · +${extraCount}`
+    : `${item.project} · ${formatNoticeTime(item.updatedAt)}`;
+  container.append(symbol, detail);
+}
+
 async function refreshStatus() {
   try {
     const data = await fetchJson("/api/status");
     refreshSeconds = data.refreshSeconds || refreshSeconds;
     updateToolCard("codex", data.tools.codex);
     updateToolCard("claude", data.tools.claude);
+    updateNotices(data.notices);
     text("updatedAt", `Updated ${new Intl.DateTimeFormat("zh-TW", {
       hour: "2-digit",
       minute: "2-digit",
