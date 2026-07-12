@@ -36,17 +36,8 @@ function text(id, value) {
   if (element) element.textContent = value;
 }
 
-function formatDate(now) {
-  return new Intl.DateTimeFormat("zh-TW", {
-    weekday: "long",
-    month: "long",
-    day: "numeric"
-  }).format(now);
-}
-
 function updateClock() {
   const now = new Date();
-  text("dateLine", formatDate(now));
   text(
     "clock",
     new Intl.DateTimeFormat("zh-TW", {

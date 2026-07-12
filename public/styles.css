@@ -50,10 +50,10 @@ body {
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
 }
 
-.date-line,
 .section-label,
 .footer,
 .weather-meta {
@@ -61,16 +61,12 @@ body {
   font-weight: 650;
 }
 
-.date-line {
-  font-size: 1.55rem;
-}
-
 .clock {
-  margin-top: 4px;
   font-size: 7.1rem;
   line-height: 0.92;
   font-weight: 780;
   font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .weather-panel {
@@ -311,10 +307,6 @@ body {
     padding: 16px 20px;
   }
 
-  .date-line {
-    font-size: 1.9rem;
-  }
-
   .clock {
     font-size: 7.8rem;
   }
@@ -369,10 +361,6 @@ body {
 
   .time-panel {
     padding: 10px 12px;
-  }
-
-  .date-line {
-    font-size: 1.45rem;
   }
 
   .clock {
